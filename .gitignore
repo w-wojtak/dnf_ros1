@@ -1,0 +1,15 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ROS build files
+build/
+devel/
+install/
+log/
+*.launch.pyc
+
+# IDEs
+.vscode/
+.idea/
