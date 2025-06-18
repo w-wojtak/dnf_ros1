@@ -1,25 +1,24 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
-import rclpy
-from rclpy.node import Node
+import rospy
 from std_msgs.msg import Float32MultiArray
 
 
-class OutputNode(Node):
+class OutputNode(object):
     def __init__(self):
-        super().__init__('output_node')
+        # Initialize the ROS node
+        rospy.init_node('output_node', anonymous=True)
 
         # Subscription to the topic publishing threshold-crossing x values
-        self.subscription = self.create_subscription(
-            Float32MultiArray,
+        self.subscription = rospy.Subscriber(
             'threshold_crossings',  # Make sure this matches the topic name in the publisher node
+            Float32MultiArray,
             self.listener_callback,
-            10)
-        self.subscription  # prevent unused variable warning
+            queue_size=10)
 
         # Timer that triggers periodically to print based on received values
-        self.timer = self.create_timer(
-            1.0, self.timer_callback)  # Runs every 1 second
+        self.timer = rospy.Timer(
+            rospy.Duration(1.0), self.timer_callback)  # Runs every 1 second
 
         # Initialize received value to None
         self.received_value = None
@@ -27,8 +26,8 @@ class OutputNode(Node):
     def listener_callback(self, msg):
         if msg.data:
             self.received_value = msg.data[0]
-            self.get_logger().info(
-                f"Received threshold crossing value: {self.received_value:.2f}")
+            rospy.loginfo(
+                "Received threshold crossing value: {:.2f}".format(self.received_value))
 
         if self.received_value is not None:
             if -45 <= self.received_value <= -35:
@@ -42,25 +41,18 @@ class OutputNode(Node):
                     "Message: Threshold crossing detected outside expected input positions.")
 
         else:
-            self.get_logger().info("Received message with empty data.")
+            rospy.loginfo("Received message with empty data.")
 
-    def timer_callback(self):
+    def timer_callback(self, event):
         pass
 
 
-def main(args=None):
-    rclpy.init(args=args)
-
-    output_node = OutputNode()
-
+def main():
     try:
-        rclpy.spin(output_node)
-    except KeyboardInterrupt:
+        output_node = OutputNode()
+        rospy.spin()
+    except rospy.ROSInterruptException:
         pass
-    finally:
-        # Clean up and shutdown the node
-        output_node.destroy_node()
-        rclpy.shutdown()
 
 
 if __name__ == '__main__':

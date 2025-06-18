@@ -1,8 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
-import rclpy
-from rclpy.node import Node
-from rclpy.executors import MultiThreadedExecutor
+import rospy
 from std_msgs.msg import Float32MultiArray
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,19 +11,15 @@ import os
 import time
 
 
-class DNFModelWM(Node):
+class DNFModelWM:
     def __init__(self):
-        super().__init__("dnf_model_recall")
+        rospy.init_node("dnf_model_recall", anonymous=True)
 
-        # Declare the 'trial_number' parameter
-        self.declare_parameter('trial_number', 1)  # Default value is 1
-
-        # Get the value of 'trial_number'
-        self.trial_number = self.get_parameter(
-            'trial_number').get_parameter_value().integer_value
+        # Get the 'trial_number' parameter (default value is 1)
+        self.trial_number = rospy.get_param('~trial_number', 1)
 
         # Log the trial number
-        self.get_logger().info(
+        rospy.loginfo(
             f"Recall node started with trial_number: {self.trial_number}")
 
         # Persistently track threshold crossings
@@ -44,26 +38,23 @@ class DNFModelWM(Node):
         self._lock = threading.Lock()
 
         # Publisher
-        self.publisher = self.create_publisher(
-            Float32MultiArray, 'threshold_crossings', 10)
+        self.publisher = rospy.Publisher(
+            'threshold_crossings', Float32MultiArray, queue_size=10)
 
         # Create a subscriber to the 'input_matrices_combined' topic
-        self.subscription = self.create_subscription(
-            Float32MultiArray,
+        self.subscription = rospy.Subscriber(
             'input_matrices_combined',
+            Float32MultiArray,
             self.process_inputs,
-            10
+            queue_size=10
         )
 
         # Variable to store the latest input slice
         self.latest_input_slice = np.zeros_like(self.x)
 
         # Timer to publish every 1 second
-        self.timer = self.create_timer(1.0, self.process_inputs)
+        self.timer = rospy.Timer(rospy.Duration(1.0), self.timer_callback)
 
-        # Initialize figure and axes for plotting
-        # self.fig, (self.ax1, self.ax2, self.ax3,
-        #            self.ax4) = plt.subplots(2, 2, figsize=(10, 10))
         # Initialize figure and axes for plotting
         self.fig, axes = plt.subplots(2, 3, figsize=(15, 9))
         self.ax1, self.ax2, self.ax3, self.ax4, self.ax5, self.ax6 = axes.flatten()
@@ -133,10 +124,7 @@ class DNFModelWM(Node):
 
             if self.trial_number == 1:
 
-                # self.h_d_initial = 4.1067860962773075
-
                 # Ensure it's 1D and shift as needed
-                # u0 = max(load_sequence_memory().flatten())
                 self.u_act = load_sequence_memory().flatten() - self.h_d_initial + 1.5
                 self.input_action_onset = load_sequence_memory().flatten()
                 self.h_u_act = -self.h_d_initial * \
@@ -146,13 +134,10 @@ class DNFModelWM(Node):
                 self.input_action_onset_2 = load_sequence_memory_2().flatten()
                 self.h_u_sim = -self.h_d_initial * \
                     np.ones(np.shape(self.x)) + 1.5
-                # self.get_logger().info(f"Initial h: {-self.h_d_initial}")
-                # self.get_logger().info(f"Initial u0: {u0}")
-                # self.get_logger().info(f"Initial u act : {max(self.u_act)}")
             else:
                 data_dir = os.path.join(
                     os.getcwd(), 'dnf_architecture_extended/data')
-                self.get_logger().info(f"Loading from {data_dir}")
+                rospy.loginfo(f"Loading from {data_dir}")
                 latest_h_amem_file = get_latest_file(data_dir, 'h_amem')
                 latest_h_amem = np.load(latest_h_amem_file, allow_pickle=True)
 
@@ -162,25 +147,15 @@ class DNFModelWM(Node):
                 self.h_u_act = -self.h_d_initial * \
                     np.ones(np.shape(self.x)) + 1.5
 
-        except FileNotFoundError:
-            # print("No previous sequence memory found, initializing with default values.")
-            # self.u_act = np.zeros(np.shape(self.x))  # Default initialization
-            # self.h_0_act = -3.2
-            # self.h_u_act = self.h_0_act * np.ones(np.shape(self.x))
-            self.get_logger().info(f"No previous sequence memory found.")
+        except IOError:
+            rospy.loginfo(f"No previous sequence memory found.")
 
         # Parameters specific to working memory
         self.h_0_wm = -1.0
         self.theta_wm = 0.8
 
-        # self.kernel_pars_wm = (1.5, 0.5, 0.75)
-        # self.kernel_pars_wm = (2, 0.5, 0.6)
         self.kernel_pars_wm = (1.75, 0.5, 0.8)
         self.w_hat_wm = np.fft.fft(self.kernel_osc(*self.kernel_pars_wm))
-
-        # self.kernel_pars_inhib = (2.5, 0.5, 0.8)
-        # # Fourier transform of the kernel function
-        # self.w_hat_inhib = np.fft.fft(self.kernel_osc(*self.kernel_pars_inhib))
 
         # initialization
         self.u_wm = self.h_0_wm * np.ones(np.shape(self.x))
@@ -225,18 +200,19 @@ class DNFModelWM(Node):
         self.h_u_amem = np.zeros(np.shape(self.x))
         self.beta_adapt = 0.01
 
-    def process_inputs(self, msg=None):
-        """Process recall by receiving msg from subscription or by timer."""
+    def timer_callback(self, event):
+        """Timer callback to process inputs periodically."""
+        self.perform_recall()
 
-        if msg:
-            # Handle incoming message from subscriber
-            received_data = np.array(msg.data)
-            self.latest_input_slice = received_data
-            # self.get_logger().info(
-            #     f"Received data from subscription: {self.latest_input_slice}")
+    def process_inputs(self, msg):
+        """Process recall by receiving msg from subscription."""
+        # Handle incoming message from subscriber
+        received_data = np.array(msg.data)
+        self.latest_input_slice = received_data
+        # rospy.loginfo(f"Received data from subscription: {self.latest_input_slice}")
 
-            # Handle the logic for both subscription and timer (without msg)
-            self.perform_recall()
+        # Handle the logic for both subscription and timer
+        self.perform_recall()
 
     def perform_recall(self):
 
@@ -251,9 +227,6 @@ class DNFModelWM(Node):
         input_agent2 = self.latest_input_slice[n:2*n]
 
         input_agent_robot_feedback = self.latest_input_slice[2*n:]
-
-        # self.get_logger().info(
-        #     f"Received size input: {len(self.u_act)}")
 
         f_f1 = np.heaviside(self.u_f1 - self.theta_f, 1)
         f_hat_f1 = np.fft.fft(f_f1)
@@ -286,13 +259,8 @@ class DNFModelWM(Node):
             np.fft.ifftshift(
                 np.real(np.fft.ifft(f_hat_error * self.w_hat_act)))
 
-        # conv_inhib = self.dx * \
-        #     np.fft.ifftshift(np.real(np.fft.ifft(f_hat_wm * self.w_hat_inhib)))
-
         # Update field states
         self.h_u_act += self.dt / self.tau_h_act
-        # self.u_act += self.dt * (-self.u_act + conv_act + self.input_action_onset +
-        #                          self.h_u_act - 1.9 * f_wm * self.u_wm)
         self.h_u_sim += self.dt / self.tau_h_sim
 
         self.u_act += self.dt * (-self.u_act + conv_act + self.input_action_onset +
@@ -301,8 +269,6 @@ class DNFModelWM(Node):
         self.u_sim += self.dt * (-self.u_sim + conv_sim + self.input_action_onset_2 +
                                  self.h_u_sim - 6.0 * f_wm * conv_wm)
 
-        # self.u_wm += self.dt * (-self.u_wm + conv_wm +
-        #                         self.h_u_wm + f_act * self.u_act)
         self.u_wm += self.dt * \
             (-self.u_wm + conv_wm + 6*((f_f1*self.u_f1)*(f_f2*self.u_f2)) + self.h_u_wm)
 
@@ -341,7 +307,7 @@ class DNFModelWM(Node):
         self.u_f2_history.append(u_f2_values_at_positions)
 
         # Track current time
-        current_time = self.get_clock().now().to_msg().sec
+        current_time = rospy.get_time()
 
         # Check `u_act` values at exact input indices for threshold crossings
         for i, idx in enumerate(input_indices):
@@ -401,9 +367,8 @@ class DNFModelWM(Node):
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
 
-        self.get_logger().info(f"SAVING HISTORY to {data_dir}")
-        self.get_logger().info(
-            f"SAVING HISTORY SIZE U ACT {len(self.u_act_history)}")
+        rospy.loginfo(f"SAVING HISTORY to {data_dir}")
+        rospy.loginfo(f"SAVING HISTORY SIZE U ACT {len(self.u_act_history)}")
         # Create directory if it doesn't exist
 
         # Get current date and time for file name
@@ -438,7 +403,7 @@ def load_sequence_memory(filename=None):
             "sequence_memory_") and f.endswith('.npy')]
 
         if not files:
-            raise FileNotFoundError(
+            raise IOError(
                 "No 'sequence_memory_' files found in the 'data' folder.")
 
         # Get the latest file by modification time
@@ -463,7 +428,7 @@ def load_sequence_memory_2(filename=None):
             "sequence_2_") and f.endswith('.npy')]
 
         if not files:
-            raise FileNotFoundError(
+            raise IOError(
                 "No 'sequence_2_' files found in the 'data' folder.")
 
         # Get the latest file by modification time
@@ -488,7 +453,7 @@ def load_task_duration(filename=None):
             "task_duration_") and f.endswith('.npy')]
 
         if not files:
-            raise FileNotFoundError(
+            raise IOError(
                 "No 'task_duration_' files found in the 'data' folder.")
 
         # Get the latest file by modification time
@@ -522,56 +487,25 @@ def get_latest_file(data_dir, pattern):
     return os.path.join(data_dir, files[0])
 
 
-def main(args=None):
-    rclpy.init(args=args)
-    node = DNFModelWM()
-
-    # Multi-threaded executor to handle ROS spinning
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
-
-    # Run executor in a separate thread
-    thread = threading.Thread(target=executor.spin, daemon=True)
-    thread.start()
-
+def main():
     try:
-        node._plt()  # Start the plotting function
+        node = DNFModelWM()
+
+        # Start the plotting function in a separate thread
+        plot_thread = threading.Thread(target=node._plt, daemon=True)
+        plot_thread.start()
+
+        # Keep the node running
+        rospy.spin()
+
+    except rospy.ROSInterruptException:
+        pass
     except KeyboardInterrupt:
         pass
     finally:
-        node.save_history()
-        node.destroy_node()
-        rclpy.shutdown()
+        if 'node' in locals():
+            node.save_history()
         plt.close()
-    # rclpy.init(args=args)
-    # node = DNFModelWM()
-
-    # # Multi-threaded executor to handle ROS spinning
-    # executor = MultiThreadedExecutor()
-    # executor.add_node(node)
-
-    # try:
-    #     # Run the executor in a separate thread
-    #     thread = threading.Thread(target=executor.spin, daemon=True)
-    #     thread.start()
-
-    #     # Start the plotting function
-    #     node._plt()
-
-    #     # Main loop to handle executor
-    #     while rclpy.ok():
-    #         # Run a single spin cycle
-    #         executor.spin_once()
-    #         time.sleep(0.1)  # Sleep to allow for smooth spinning
-
-    # except KeyboardInterrupt:
-    #     pass
-    # finally:
-    #     # Ensure history is saved before shutting down
-    #     node.save_history()  # Save history
-    #     node.destroy_node()   # Destroy the node properly
-    #     rclpy.shutdown()      # Shutdown ROS2
-    #     plt.close()           # Close the plot
 
 
 if __name__ == '__main__':

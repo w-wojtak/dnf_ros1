@@ -1,30 +1,30 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
-import rclpy
-from rclpy.node import Node
+import rospy
 import numpy as np
 from std_msgs.msg import Float32MultiArray
 
 
-class InputMatrix(Node):
+class InputMatrix(object):
 
     def __init__(self):
-        super().__init__("input_matrix")
+        # Initialize the ROS node
+        rospy.init_node('input_matrix', anonymous=True)
 
         # Create a publisher for both input matrices in a combined format
-        self.input_pub = self.create_publisher(
-            Float32MultiArray, "input_matrices_combined", 10)
+        self.input_pub = rospy.Publisher(
+            'input_matrices_combined', Float32MultiArray, queue_size=10)
 
         # Create a subscriber for the threshold crossings topic
-        self.threshold_sub = self.create_subscription(
+        self.threshold_sub = rospy.Subscriber(
+            'threshold_crossings',
             Float32MultiArray,
-            "threshold_crossings",
             self.threshold_callback,
-            10
+            queue_size=10
         )
 
         # Timer to publish every full time step
-        self.timer = self.create_timer(1, self.publish_slices)
+        self.timer = rospy.Timer(rospy.Duration(1.0), self.publish_slices)
 
         # Simulation parameters
         self.x_lim = 80
@@ -96,8 +96,9 @@ class InputMatrix(Node):
     def threshold_callback(self, msg):
         # Extract the threshold crossing value
         self.received_value = msg.data[0]
-        self.get_logger().info(
-            f"Received threshold crossing value: {self.received_value:.2f}"
+        rospy.loginfo(
+            "Received threshold crossing value: {:.2f}".format(
+                self.received_value)
         )
 
         # Determine the input position based on the received threshold crossing value
@@ -108,7 +109,8 @@ class InputMatrix(Node):
         elif 35 <= self.received_value <= 45:
             input_position = 40  # Right input position
         else:
-            self.get_logger().warning("Threshold crossing value is outside expected ranges.")
+            rospy.logwarn(
+                "Threshold crossing value is outside expected ranges.")
             return  # Exit if the value is not within valid ranges
 
         # Define the delay in time steps
@@ -127,11 +129,11 @@ class InputMatrix(Node):
         # Regenerate input_matrix_2 with updated parameters
         self.input_matrix_3 = self.get_input_matrix(self.gaussian_params_3)
 
-        self.get_logger().info(
-            f"Updated gaussian_params_3: {self.gaussian_params_3}"
+        rospy.loginfo(
+            "Updated gaussian_params_3: {}".format(self.gaussian_params_3)
         )
 
-    def publish_slices(self):
+    def publish_slices(self, event):
         if self.current_time_index < len(self.t):
             # Combine the two matrices into a single array (nested)
             combined_input = [
@@ -149,25 +151,31 @@ class InputMatrix(Node):
             self.input_pub.publish(msg)
 
             # Log publication
-            self.get_logger().info(
-                f"Published t={self.t[self.current_time_index]:.2f}, "
-                f"Max (Matrix 1): {self.input_matrix_1[self.current_time_index].max():.2f}, "
-                f"Max (Matrix 1): {self.input_matrix_2[self.current_time_index].max():.2f}, "
-                f"Max (Matrix 2): {self.input_matrix_3[self.current_time_index].max():.2f}"
+            rospy.loginfo(
+                "Published t={:.2f}, "
+                "Max (Matrix 1): {:.2f}, "
+                "Max (Matrix 2): {:.2f}, "
+                "Max (Matrix 3): {:.2f}".format(
+                    self.t[self.current_time_index],
+                    self.input_matrix_1[self.current_time_index].max(),
+                    self.input_matrix_2[self.current_time_index].max(),
+                    self.input_matrix_3[self.current_time_index].max()
+                )
             )
 
             self.current_time_index += 1
         else:
             # Stop timer when all slices are published
-            self.get_logger().info("Completed publishing all time slices.")
-            self.timer.cancel()
+            rospy.loginfo("Completed publishing all time slices.")
+            self.timer.shutdown()
 
 
-def main(args=None):
-    rclpy.init(args=args)
-    node = InputMatrix()
-    rclpy.spin(node)
-    rclpy.shutdown()
+def main():
+    try:
+        node = InputMatrix()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass
 
 
 if __name__ == '__main__':
