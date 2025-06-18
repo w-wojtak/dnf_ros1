@@ -1,0 +1,12 @@
+<launch>
+  <arg name="trial_number" default="1" />
+
+  <node pkg="dnf_cognitive_architecture" type="dnf_model_recall" name="dnf_model_recall">
+    <param name="trial_number" value="$(arg trial_number)" />
+  </node>
+
+  <node pkg="dnf_cognitive_architecture" type="output_node" name="output_node" />
+</launch>
+
+<!-- The default value is 1, but you can override it when launching:
+roslaunch your_launch_file.launch trial_number:=3 -->
