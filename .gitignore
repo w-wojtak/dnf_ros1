@@ -13,3 +13,5 @@ log/
 # IDEs
 .vscode/
 .idea/
+
+data/

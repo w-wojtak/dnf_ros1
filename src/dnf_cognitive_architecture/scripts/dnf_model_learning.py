@@ -1,10 +1,14 @@
 #!/usr/bin/env python
+import matplotlib
+matplotlib.use('Qt5Agg')  # Change to Qt5Agg backend
+matplotlib.rcParams['figure.autolayout'] = True  # Add this line
 
 import rospy
 import threading
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+plt.style.use('default')  # Use default style
 import matplotlib.animation as anim
 from std_msgs.msg import Float32MultiArray
 from datetime import datetime
@@ -32,39 +36,16 @@ class DNFModel:
         # Lock for thread safety
         self._lock = threading.Lock()
 
-        # Subscriber - Fixed: ROS1 uses callback as positional argument
-        self.subscriber = rospy.Subscriber(
-            'input_matrices_combined', Float32MultiArray, self.input_callback, queue_size=10)
-
         # Time tracking
         self.time_counter = 0.0
         self.current_step = 1
 
-        # Figure for plotting
-        self.fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-        self.ax1, self.ax2 = axes.flatten()
-        self.line_u_sm_1, = self.ax1.plot(
-            self.x, np.zeros_like(self.x), label="u_sm_1")
-        self.line_u_sm_2, = self.ax2.plot(
-            self.x, np.zeros_like(self.x), label="u_sm_2")
-
-        for ax in [self.ax1, self.ax2]:
-            ax.set_xlim(-self.x_lim, self.x_lim)
-            ax.set_ylim(-2, 10)
-            ax.set_xlabel("x")
-            ax.set_ylabel("u(x)")
-            ax.legend()
-
-        self.ax1.set_title("Sequence Memory Field 1 (Robot)")
-        self.ax2.set_title("Sequence Memory Field 2 (Human)")
-
-        # Initialize fields
+        # Initialize fields for sequence memory field 1
         self.h_0_sm = 0
         self.tau_h_sm = 20
         self.theta_sm = 1.5
 
         self.h_0_sm_2 = 0
-        self.tau_h_sm = 20  # Fixed: Added missing tau_h_sm for field 2
         self.theta_sm_2 = 1.5
 
         self.kernel_pars_sm = (1, 0.7, 0.9)
@@ -76,6 +57,7 @@ class DNFModel:
         self.u_sm_2 = self.h_0_sm_2 * np.ones(np.shape(self.x))
         self.h_u_sm_2 = self.h_0_sm_2 * np.ones(np.shape(self.x))
 
+        # Initialize detection field BEFORE creating subscriber
         self.h_0_d = 0
         self.tau_h_d = 20
         self.theta_d = 1.5
@@ -85,6 +67,39 @@ class DNFModel:
 
         self.u_d = self.h_0_d * np.ones(np.shape(self.x))
         self.h_u_d = self.h_0_d * np.ones(np.shape(self.x))
+
+        # Add these debug lines
+        rospy.loginfo(f"Initial u_sm shape: {self.u_sm.shape}, values: min={np.min(self.u_sm)}, max={np.max(self.u_sm)}")
+        rospy.loginfo(f"Initial u_sm_2 shape: {self.u_sm_2.shape}, values: min={np.min(self.u_sm_2)}, max={np.max(self.u_sm_2)}")
+
+        # NOW create the subscriber after all fields are initialized
+        self.subscriber = rospy.Subscriber(
+            'input_matrices_combined', Float32MultiArray, self.input_callback, queue_size=10)
+
+        # Setup the plot window
+        plt.ion()
+        self.fig = plt.figure(figsize=(10, 5))
+        self.ax1 = self.fig.add_subplot(121)
+        self.ax2 = self.fig.add_subplot(122)
+        
+        # Create line objects
+        self.line1, = self.ax1.plot(self.x, self.u_sm, 'b-', label="u_sm_1")
+        self.line2, = self.ax2.plot(self.x, self.u_sm_2, 'r-', label="u_sm_2")
+        
+        # Set up the axes
+        for ax in [self.ax1, self.ax2]:
+            ax.set_xlim(-self.x_lim, self.x_lim)
+            ax.set_ylim(-2, 6)
+            ax.set_xlabel("x")
+            ax.set_ylabel("u(x)")
+            ax.grid(True)
+            ax.legend()
+        
+        self.ax1.set_title("Sequence Memory Field 1 (Robot)")
+        self.ax2.set_title("Sequence Memory Field 2 (Human)")
+        
+        plt.tight_layout()
+        plt.show(block=False)
 
         rospy.loginfo("DNF Model initialized successfully")
 
@@ -143,6 +158,8 @@ class DNFModel:
                 self.h_u_sm_2 += self.dt / self.tau_h_sm * f_sm_2
                 self.u_sm_2 += self.dt * \
                     (-self.u_sm_2 + conv_sm_2 + input_agent2 + self.h_u_sm_2)
+                
+                rospy.loginfo(f"Updated values - u_sm max={np.max(self.u_sm):.2f}, u_sm_2 max={np.max(self.u_sm_2):.2f}")
 
                 # Store history at specific positions
                 input_positions = [-40, 0, 40]
@@ -175,23 +192,19 @@ class DNFModel:
         except Exception as e:
             rospy.logerr(f"Error in input_callback: {str(e)}")
 
-    def plt_func(self, frame):
+    def update_plot(self):
+        """Update plot data without blocking"""
         try:
             with self._lock:
-                self.line_u_sm_1.set_ydata(self.u_sm)
-                self.line_u_sm_2.set_ydata(self.u_sm_2)
-            return self.line_u_sm_1, self.line_u_sm_2
+                # Update line data
+                self.line1.set_ydata(self.u_sm)
+                self.line2.set_ydata(self.u_sm_2)
+                
+                # Update display
+                self.fig.canvas.draw_idle()
+                self.fig.canvas.flush_events()
         except Exception as e:
-            rospy.logerr(f"Error in plotting: {str(e)}")
-            return self.line_u_sm_1, self.line_u_sm_2
-
-    def _plt(self):
-        try:
-            self.ani = anim.FuncAnimation(
-                self.fig, self.plt_func, interval=100, blit=True)
-            plt.show()
-        except Exception as e:
-            rospy.logerr(f"Error in plotting thread: {str(e)}")
+            rospy.logerr(f"Plot update error: {str(e)}")
 
     def kernel_osc(self, a, b, alpha):
         """Oscillatory kernel function"""
@@ -237,13 +250,13 @@ if __name__ == "__main__":
         # Register shutdown hook
         rospy.on_shutdown(dnf_model.shutdown_hook)
 
-        # Launch the plot in a separate thread
-        plot_thread = threading.Thread(target=dnf_model._plt)
-        plot_thread.daemon = True  # Added daemon flag for clean shutdown
-        plot_thread.start()
-
         rospy.loginfo("DNF Model started. Waiting for input...")
-        rospy.spin()
+        
+        # Main loop with plotting
+        rate = rospy.Rate(10)  # 10 Hz update rate
+        while not rospy.is_shutdown():
+            dnf_model.update_plot()
+            rate.sleep()
 
     except rospy.ROSInterruptException:
         rospy.loginfo("DNF Model interrupted by user")

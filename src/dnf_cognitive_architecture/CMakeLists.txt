@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(dnf_cognitive_architecture_extended)
+project(dnf_cognitive_architecture)
 
 find_package(catkin REQUIRED COMPONENTS
   rospy
@@ -24,7 +24,7 @@ install(DIRECTORY launch/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
 
-install(DIRECTORY dnf_cognitive_architecture_extended/
+install(DIRECTORY dnf_cognitive_architecture/
   DESTINATION ${CATKIN_PACKAGE_PYTHON_DESTINATION}
   FILES_MATCHING PATTERN "*.py"
 )

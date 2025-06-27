@@ -1,7 +1,6 @@
-
 <?xml version="1.0"?>
 <package format="2">
-  <name>dnf_cognitive_architecture_extended</name>
+  <name>dnf_cognitive_architecture</name>
   <version>0.0.0</version>
   <description>Dynamic Neural Field architecture for cognitive modeling.</description>
 
