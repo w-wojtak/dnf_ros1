@@ -97,16 +97,23 @@ class DNFModel:
         
         self.ax1.set_title("Sequence Memory Field 1 (Robot)")
         self.ax2.set_title("Sequence Memory Field 2 (Human)")
-        
-        plt.tight_layout()
-        plt.show(block=False)
 
-        # Setup animation
-        self.ani = anim.FuncAnimation(self.fig, self.animate, 
-                                 interval=100,  # Update every 100ms
-                                 blit=False)
+        # Create a timer for updating the plot
+        self.timer = self.fig.canvas.new_timer(interval=100)  # 100ms interval
+        self.timer.add_callback(self.update_plot)
+        self.timer.start()
 
         rospy.loginfo("DNF Model initialized successfully")
+        
+        # plt.tight_layout()
+        # plt.show(block=False)
+
+        # # Setup animation
+        # self.ani = anim.FuncAnimation(self.fig, self.animate, 
+        #                          interval=100,  # Update every 100ms
+        #                          blit=False)
+
+        # rospy.loginfo("DNF Model initialized successfully")
 
     def input_callback(self, msg):
         try:
@@ -193,6 +200,7 @@ class DNFModel:
                     rospy.loginfo("Learning finished.")
                     self.save_sequence_memory()
                     rospy.signal_shutdown("Finished learning")
+                    
 
         except Exception as e:
             rospy.logerr(f"Error in input_callback: {str(e)}")
@@ -206,7 +214,7 @@ class DNFModel:
                 self.line2.set_ydata(self.u_sm_2)
                 
                 # Update display
-                self.fig.canvas.draw_idle()
+                self.fig.canvas.draw()
                 self.fig.canvas.flush_events()
         except Exception as e:
             rospy.logerr(f"Plot update error: {str(e)}")
@@ -223,35 +231,63 @@ class DNFModel:
     def save_sequence_memory(self):
         """Save sequence memory data to files"""
         try:
-            data_dir = "data"
+            # Get the workspace root directory (two levels up from the scripts directory)
+            current_dir = os.path.dirname(os.path.abspath(__file__))  # scripts directory
+            workspace_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))  # up to workspace root
+            data_dir = os.path.join(workspace_root, "data")
+            
             if not os.path.exists(data_dir):
                 os.makedirs(data_dir)
+                rospy.loginfo(f"Created data directory at {data_dir}")
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            np.save(os.path.join(data_dir, f"u_sm_{timestamp}.npy"),
-                    np.array(self.u_sm_history))
-            np.save(os.path.join(data_dir, f"u_sm_2_{timestamp}.npy"),
-                    np.array(self.u_sm_2_history))
-            np.save(os.path.join(data_dir, f"u_d_{timestamp}.npy"),
-                    np.array(self.u_d_history))
-
-            rospy.loginfo(
-                f"Saved sequence memory to {data_dir}/ with timestamp {timestamp}")
+            
+            # Add debug prints
+            rospy.loginfo(f"Saving to directory: {data_dir}")
+            rospy.loginfo(f"Current u_sm shape: {self.u_sm.shape}")
+            
+            # Save with full paths and error checking
+            u_sm_path = os.path.join(data_dir, f"u_sm_{timestamp}.npy")
+            u_sm_2_path = os.path.join(data_dir, f"u_sm_2_{timestamp}.npy")
+            u_d_path = os.path.join(data_dir, f"u_d_{timestamp}.npy")
+            
+            np.save(u_sm_path, self.u_sm)
+            np.save(u_sm_2_path, self.u_sm_2)
+            np.save(u_d_path, self.u_d)
+            
+            # Verify files were created
+            if os.path.exists(u_sm_path):
+                rospy.loginfo(f"Successfully saved u_sm to {u_sm_path}")
+            else:
+                rospy.logerr(f"Failed to save u_sm to {u_sm_path}")
+                
+            if os.path.exists(u_sm_2_path):
+                rospy.loginfo(f"Successfully saved u_sm_2 to {u_sm_2_path}")
+            else:
+                rospy.logerr(f"Failed to save u_sm_2 to {u_sm_2_path}")
+                
+            if os.path.exists(u_d_path):
+                rospy.loginfo(f"Successfully saved u_d to {u_d_path}")
+            else:
+                rospy.logerr(f"Failed to save u_d to {u_d_path}")
 
         except Exception as e:
             rospy.logerr(f"Error saving sequence memory: {str(e)}")
+            import traceback
+            rospy.logerr(traceback.format_exc())
+
+
 
     # def shutdown_hook(self):
     #     """Clean shutdown"""
     #     rospy.loginfo("Shutting down DNF Model...")
     #     plt.close('all')
-    def animate(self, frame):
-        """Animation function for updating plots"""
-        with self._lock:
-            self.line1.set_ydata(self.u_sm)
-            self.line2.set_ydata(self.u_sm_2)
-        return self.line1, self.line2
+    # def animate(self, frame):
+    #     """Animation function for updating plots"""
+    #     with self._lock:
+    #         self.line1.set_ydata(self.u_sm)
+    #         self.line2.set_ydata(self.u_sm_2)
+    #     return self.line1, self.line2
 
     def shutdown_hook(self):
         """Clean shutdown"""
@@ -263,33 +299,32 @@ class DNFModel:
 if __name__ == "__main__":
     try:
         dnf_model = DNFModel()
-        rospy.on_shutdown(dnf_model.shutdown_hook)
+        
+        def shutdown_handler():
+            rospy.loginfo("Shutdown handler called")
+            dnf_model.save_sequence_memory()
+            plt.close('all')
+        
+        rospy.on_shutdown(shutdown_handler)
         rospy.loginfo("DNF Model started. Waiting for input...")
         
-        # Show plot and block until window is closed
-        plt.show(block=True)
+        # Create a separate thread for ROS spinning
+        import threading
+        ros_thread = threading.Thread(target=rospy.spin)
+        ros_thread.daemon = True
+        ros_thread.start()
         
+        # Show plot in main thread
+        plt.show()
+            
     except rospy.ROSInterruptException:
         rospy.loginfo("DNF Model interrupted by user")
     except Exception as e:
         rospy.logerr(f"Fatal error in DNF Model: {str(e)}")
-    # try:
-    #     dnf_model = DNFModel()
+    finally:
+        rospy.loginfo("Entering finally block")
+        if 'dnf_model' in locals():
+            rospy.loginfo("Saving data in finally block")
+            dnf_model.save_sequence_memory()
+        plt.close('all')
 
-    #     # Register shutdown hook
-    #     rospy.on_shutdown(dnf_model.shutdown_hook)
-
-    #     rospy.loginfo("DNF Model started. Waiting for input...")
-        
-    #     # Main loop with plotting
-    #     rate = rospy.Rate(10)  # 10 Hz update rate
-    #     while not rospy.is_shutdown():
-    #         dnf_model.update_plot()
-    #         rate.sleep()
-
-    # except rospy.ROSInterruptException:
-    #     rospy.loginfo("DNF Model interrupted by user")
-    # except Exception as e:
-    #     rospy.logerr(f"Fatal error in DNF Model: {str(e)}")
-    # finally:
-    #     plt.close('all')

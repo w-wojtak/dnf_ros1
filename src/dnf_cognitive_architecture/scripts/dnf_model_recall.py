@@ -33,6 +33,7 @@ class DNFModelWM:
 
         # Spatial grid
         self.x = np.arange(-self.x_lim, self.x_lim + self.dx, self.dx)
+        rospy.loginfo(f"Spatial grid size: {len(self.x)}")
 
         # Lock for threading
         self._lock = threading.Lock()
@@ -122,6 +123,7 @@ class DNFModelWM:
         try:
             self.u_d = load_task_duration().flatten()
             self.h_d_initial = max(self.u_d)
+            rospy.loginfo(f"Loaded u_d size: {len(self.u_d)}")
 
             if self.trial_number == 1:
                 # Ensure it's 1D and shift as needed
@@ -227,6 +229,11 @@ class DNFModelWM:
             
             # Get the size of each input (assuming 3 equal parts)
             n = len(received_data) // 3
+
+            rospy.loginfo(f"Debug sizes:")
+            rospy.loginfo(f"self.x size: {len(self.x)}")
+            rospy.loginfo(f"Received data size: {len(received_data)}")
+            rospy.loginfo(f"Each input size (n): {n}")
             
             with self._lock:
                 # If input size doesn't match field size, interpolate
@@ -422,11 +429,11 @@ def load_sequence_memory(filename=None):
     if filename is None:
         # Filter files with the "sequence_memory_" prefix
         files = [f for f in os.listdir(data_dir) if f.startswith(
-            "sequence_memory_") and f.endswith('.npy')]
+            "u_sm_") and f.endswith('.npy')]
 
         if not files:
             raise IOError(
-                "No 'sequence_memory_' files found in the 'data' folder.")
+                "No 'u_sm_' files found in the 'data' folder.")
 
         # Get the latest file by modification time
         latest_file = max([os.path.join(data_dir, f)
@@ -447,11 +454,11 @@ def load_sequence_memory_2(filename=None):
     if filename is None:
         # Filter files with the "sequence_memory_" prefix
         files = [f for f in os.listdir(data_dir) if f.startswith(
-            "sequence_2_") and f.endswith('.npy')]
+            "u_sm_") and f.endswith('.npy')]
 
         if not files:
             raise IOError(
-                "No 'sequence_2_' files found in the 'data' folder.")
+                "No 'u_sm_' files found in the 'data' folder.")
 
         # Get the latest file by modification time
         latest_file = max([os.path.join(data_dir, f)
@@ -471,8 +478,10 @@ def load_task_duration(filename=None):
     data_dir = "data"
     if filename is None:
         # Filter files with the "sequence_memory_" prefix
+        # files = [f for f in os.listdir(data_dir) if f.startswith(
+        #     "task_duration_") and f.endswith('.npy')]
         files = [f for f in os.listdir(data_dir) if f.startswith(
-            "task_duration_") and f.endswith('.npy')]
+            "u_d_") and f.endswith('.npy')]
 
         if not files:
             raise IOError(

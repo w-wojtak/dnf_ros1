@@ -16,5 +16,8 @@ Terminal 2:
 source ~/dnf_ros1/devel/setup.bash
 rosrun dnf_cognitive_architecture dnf_model_learning.py
 
+from launch file:
+roslaunch dnf_cognitive_architecture dnf_learn.launch
+
 
 """
