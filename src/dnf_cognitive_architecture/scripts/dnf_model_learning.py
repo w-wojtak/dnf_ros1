@@ -77,7 +77,7 @@ class DNFModel:
             'input_matrices_combined', Float32MultiArray, self.input_callback, queue_size=10)
 
         # Setup the plot window
-        plt.ion()
+        # plt.ion()
         self.fig = plt.figure(figsize=(10, 5))
         self.ax1 = self.fig.add_subplot(121)
         self.ax2 = self.fig.add_subplot(122)
@@ -100,6 +100,11 @@ class DNFModel:
         
         plt.tight_layout()
         plt.show(block=False)
+
+        # Setup animation
+        self.ani = anim.FuncAnimation(self.fig, self.animate, 
+                                 interval=100,  # Update every 100ms
+                                 blit=False)
 
         rospy.loginfo("DNF Model initialized successfully")
 
@@ -237,30 +242,54 @@ class DNFModel:
         except Exception as e:
             rospy.logerr(f"Error saving sequence memory: {str(e)}")
 
+    # def shutdown_hook(self):
+    #     """Clean shutdown"""
+    #     rospy.loginfo("Shutting down DNF Model...")
+    #     plt.close('all')
+    def animate(self, frame):
+        """Animation function for updating plots"""
+        with self._lock:
+            self.line1.set_ydata(self.u_sm)
+            self.line2.set_ydata(self.u_sm_2)
+        return self.line1, self.line2
+
     def shutdown_hook(self):
         """Clean shutdown"""
         rospy.loginfo("Shutting down DNF Model...")
-        plt.close('all')
+        # Don't close plots here
+        pass
 
 
 if __name__ == "__main__":
     try:
         dnf_model = DNFModel()
-
-        # Register shutdown hook
         rospy.on_shutdown(dnf_model.shutdown_hook)
-
         rospy.loginfo("DNF Model started. Waiting for input...")
         
-        # Main loop with plotting
-        rate = rospy.Rate(10)  # 10 Hz update rate
-        while not rospy.is_shutdown():
-            dnf_model.update_plot()
-            rate.sleep()
-
+        # Show plot and block until window is closed
+        plt.show(block=True)
+        
     except rospy.ROSInterruptException:
         rospy.loginfo("DNF Model interrupted by user")
     except Exception as e:
         rospy.logerr(f"Fatal error in DNF Model: {str(e)}")
-    finally:
-        plt.close('all')
+    # try:
+    #     dnf_model = DNFModel()
+
+    #     # Register shutdown hook
+    #     rospy.on_shutdown(dnf_model.shutdown_hook)
+
+    #     rospy.loginfo("DNF Model started. Waiting for input...")
+        
+    #     # Main loop with plotting
+    #     rate = rospy.Rate(10)  # 10 Hz update rate
+    #     while not rospy.is_shutdown():
+    #         dnf_model.update_plot()
+    #         rate.sleep()
+
+    # except rospy.ROSInterruptException:
+    #     rospy.loginfo("DNF Model interrupted by user")
+    # except Exception as e:
+    #     rospy.logerr(f"Fatal error in DNF Model: {str(e)}")
+    # finally:
+    #     plt.close('all')
