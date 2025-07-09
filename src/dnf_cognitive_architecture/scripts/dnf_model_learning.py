@@ -77,7 +77,6 @@ class DNFModel:
             'input_matrices_combined', Float32MultiArray, self.input_callback, queue_size=10)
 
         # Setup the plot window
-        # plt.ion()
         self.fig = plt.figure(figsize=(10, 5))
         self.ax1 = self.fig.add_subplot(121)
         self.ax2 = self.fig.add_subplot(122)
@@ -104,16 +103,6 @@ class DNFModel:
         self.timer.start()
 
         rospy.loginfo("DNF Model initialized successfully")
-        
-        # plt.tight_layout()
-        # plt.show(block=False)
-
-        # # Setup animation
-        # self.ani = anim.FuncAnimation(self.fig, self.animate, 
-        #                          interval=100,  # Update every 100ms
-        #                          blit=False)
-
-        # rospy.loginfo("DNF Model initialized successfully")
 
     def input_callback(self, msg):
         try:
@@ -276,18 +265,6 @@ class DNFModel:
             import traceback
             rospy.logerr(traceback.format_exc())
 
-
-
-    # def shutdown_hook(self):
-    #     """Clean shutdown"""
-    #     rospy.loginfo("Shutting down DNF Model...")
-    #     plt.close('all')
-    # def animate(self, frame):
-    #     """Animation function for updating plots"""
-    #     with self._lock:
-    #         self.line1.set_ydata(self.u_sm)
-    #         self.line2.set_ydata(self.u_sm_2)
-    #     return self.line1, self.line2
 
     def shutdown_hook(self):
         """Clean shutdown"""
