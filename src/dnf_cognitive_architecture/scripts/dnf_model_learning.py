@@ -265,6 +265,70 @@ class DNFModel:
             import traceback
             rospy.logerr(traceback.format_exc())
 
+            
+    def plot_activity_evolution(self, save_plot: bool = True, show_plot: bool = True):
+        try:
+            input_positions = [-40, 0, 40]
+
+            u_sm_hist = np.array(self.u_sm_history)
+            u_sm_2_hist = np.array(self.u_sm_2_history)
+            u_d_hist = np.array(self.u_d_history)
+            time_steps = np.arange(len(u_sm_hist)) * self.dt
+
+            fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+
+            # Plot u_sm (Agent 1)
+            for i, pos in enumerate(input_positions):
+                axes[0].plot(time_steps, u_sm_hist[:, i], label=f'x = {pos}')
+            axes[0].set_title('u_sm (Agent 1) over time at input positions')
+            axes[0].set_ylabel('u_sm')
+            axes[0].legend()
+            axes[0].grid(True)
+
+            # Plot u_sm_2 (Agent 2)
+            for i, pos in enumerate(input_positions):
+                axes[1].plot(time_steps, u_sm_2_hist[:, i], label=f'x = {pos}')
+            axes[1].set_title('u_sm_2 (Agent 2) over time at input positions')
+            axes[1].set_ylabel('u_sm_2')
+            axes[1].legend()
+            axes[1].grid(True)
+
+            # Plot u_d (center)
+            axes[2].plot(time_steps, u_d_hist, label='center x=0', color='black')
+            axes[2].set_title('u_d over time at center position')
+            axes[2].set_xlabel('Time (s)')
+            axes[2].set_ylabel('u_d')
+            axes[2].legend()
+            axes[2].grid(True)
+
+            plt.tight_layout()
+
+            # Save to disk
+            if save_plot:
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                workspace_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+                data_dir = os.path.join(workspace_root, "data")
+                if not os.path.exists(data_dir):
+                    os.makedirs(data_dir)
+
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                plot_path = os.path.join(data_dir, f"evolution_plot_{timestamp}.png")
+                fig.savefig(plot_path)
+                rospy.loginfo(f"Saved activity evolution plot to {plot_path}")
+
+            # Show the plot
+            if show_plot:
+                plt.show()
+            else:
+                plt.close(fig)
+
+        except Exception as e:
+            rospy.logerr(f"Error plotting activity evolution: {e}")
+            import traceback
+            rospy.logerr(traceback.format_exc())
+
+
+
 
     def shutdown_hook(self):
         """Clean shutdown"""
@@ -303,5 +367,6 @@ if __name__ == "__main__":
         if 'dnf_model' in locals():
             rospy.loginfo("Saving data in finally block")
             dnf_model.save_sequence_memory()
+            dnf_model.plot_activity_evolution(save_plot=False, show_plot=True)
         plt.close('all')
 
