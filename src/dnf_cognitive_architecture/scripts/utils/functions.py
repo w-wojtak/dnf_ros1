@@ -8,7 +8,7 @@ import os
 import torch
 import ast
 from threading import Lock
-import pika
+# import pika
 import json
 
 
@@ -23,7 +23,7 @@ import csv
 
 import time
 
-import tensorflow as tf
+# import tensorflow as tf
 
 
 

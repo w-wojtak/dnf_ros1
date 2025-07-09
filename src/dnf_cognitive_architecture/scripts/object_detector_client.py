@@ -175,7 +175,7 @@ def read_webcam_frames_hom(stop_event):
                     last_print_time = current_time
                 
                 # Publish to ROS at a configurable rate (e.g., 10 Hz)
-                if current_time - last_publish_time >= 0.1:  # 10 Hz
+                if current_time - last_publish_time >= 0.5:  # 0.5 = 2 Hz
                     # Prepare detection data
                     detections_data = {
                         "timestamp": rospy.get_time(),

@@ -20,4 +20,8 @@ from launch file:
 roslaunch dnf_cognitive_architecture dnf_learn.launch
 
 
+to run vision code:
+source venv_detection/bin/activate
+
+
 """

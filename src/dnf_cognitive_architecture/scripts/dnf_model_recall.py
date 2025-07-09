@@ -230,10 +230,10 @@ class DNFModelWM:
             # Get the size of each input (assuming 3 equal parts)
             n = len(received_data) // 3
 
-            rospy.loginfo(f"Debug sizes:")
-            rospy.loginfo(f"self.x size: {len(self.x)}")
-            rospy.loginfo(f"Received data size: {len(received_data)}")
-            rospy.loginfo(f"Each input size (n): {n}")
+            # rospy.loginfo(f"Debug sizes:")
+            # rospy.loginfo(f"self.x size: {len(self.x)}")
+            # rospy.loginfo(f"Received data size: {len(received_data)}")
+            # rospy.loginfo(f"Each input size (n): {n}")
             
             with self._lock:
                 # If input size doesn't match field size, interpolate
