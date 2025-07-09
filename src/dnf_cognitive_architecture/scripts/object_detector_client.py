@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import cv2
 import numpy as np
 from ultralytics import YOLO
@@ -5,10 +7,23 @@ import torch
 import os
 import time
 from datetime import datetime
+import json
 
+# ROS imports
+import rospy
+from std_msgs.msg import String
+from geometry_msgs.msg import PointStamped
+from visualization_msgs.msg import MarkerArray, Marker
 
 import pyzed.sl as sl
 import utils.functions as functions
+
+# Initialize ROS publisher (global so we can use it in the function)
+rospy.init_node('zed_object_detector', anonymous=True, disable_signals=True)
+detection_pub = rospy.Publisher('/object_detections', String, queue_size=10)
+marker_pub = rospy.Publisher('/object_markers', MarkerArray, queue_size=10)
+
+rospy.loginfo("Object detector initialized, publishing to /object_detections")
 
 init_params = sl.InitParameters()
 init_params.depth_mode = sl.DEPTH_MODE.ULTRA
@@ -33,9 +48,53 @@ except Exception as e:
 # Add this at the start of your script, outside the function
 EXCLUDED_CLASSES = ['nut1', 'nut2']  # modify this list as needed
 
+def publish_detections(detections_data):
+    """Publish detection data to ROS topic"""
+    try:
+        # Publish as JSON string
+        msg = String()
+        msg.data = json.dumps(detections_data)
+        detection_pub.publish(msg)
+        
+        # Also publish visualization markers
+        marker_array = MarkerArray()
+        for idx, detection in enumerate(detections_data['detections']):
+            if detection['position']['x'] is not None:
+                marker = Marker()
+                marker.header.frame_id = "camera_link"  # Adjust frame_id as needed
+                marker.header.stamp = rospy.Time.now()
+                marker.ns = "object_detections"
+                marker.id = idx
+                marker.type = Marker.SPHERE
+                marker.action = Marker.ADD
+                
+                marker.pose.position.x = detection['position']['x']
+                marker.pose.position.y = detection['position']['y']
+                marker.pose.position.z = detection['position']['z']
+                marker.pose.orientation.w = 1.0
+                
+                marker.scale.x = 0.1
+                marker.scale.y = 0.1
+                marker.scale.z = 0.1
+                
+                marker.color.a = 1.0
+                marker.color.r = 0.0
+                marker.color.g = 1.0
+                marker.color.b = 0.0
+                
+                marker.lifetime = rospy.Duration(1.0)  # Marker expires after 1 second
+                
+                marker_array.markers.append(marker)
+        
+        marker_pub.publish(marker_array)
+        
+    except Exception as e:
+        rospy.logerr(f"Failed to publish detection: {e}")
+
 def read_webcam_frames_hom(stop_event):
     detection_enabled = False  # Control detection via keypress
     last_print_time = time.time()  # Initialize timer
+    last_publish_time = time.time()  # Add publish timer
     
     if zed.open(init_params) != sl.ERROR_CODE.SUCCESS:
         print("Camera error.")
@@ -114,6 +173,33 @@ def read_webcam_frames_hom(stop_event):
                             print(f"Object: {classes[v]:<15} | Position (x,y,z): ({x:>6.2f}, {y:>6.2f}, {z:>6.2f}) m | Confidence: {scores[v]:.2f}")
                     print("="*50)
                     last_print_time = current_time
+                
+                # Publish to ROS at a configurable rate (e.g., 10 Hz)
+                if current_time - last_publish_time >= 0.1:  # 10 Hz
+                    # Prepare detection data
+                    detections_data = {
+                        "timestamp": rospy.get_time(),
+                        "frame_time": datetime.now().isoformat(),
+                        "detections": []
+                    }
+                    
+                    for v in range(len(worlds_coordinates)):
+                        x, y, z = worlds_coordinates[v]
+                        detection = {
+                            "object": classes[v],
+                            "position": {
+                                "x": x,
+                                "y": y,
+                                "z": z
+                            },
+                            "confidence": float(scores[v]),
+                            "bbox": image_bboxs[v]
+                        }
+                        detections_data["detections"].append(detection)
+                    
+                    # Publish the detections
+                    publish_detections(detections_data)
+                    last_publish_time = current_time
 
             cv2.namedWindow(f"{functions.camera_type} Frame", cv2.WINDOW_NORMAL)
             cv2.imshow(f"{functions.camera_type} Frame", image_ocv)
@@ -122,9 +208,11 @@ def read_webcam_frames_hom(stop_event):
             if key == ord('s'):
                 detection_enabled = True
                 print("Detection started.")
+                rospy.loginfo("Detection started - publishing to ROS topics")
             elif key == ord('p'):
                 detection_enabled = False
                 print("Detection paused.")
+                rospy.loginfo("Detection paused - stopped publishing")
             elif key == ord('q'):
                 stop_event.set()
                 break
@@ -141,4 +229,12 @@ if __name__ == "__main__":
     manager = multiprocessing.Manager()
     stop_event = multiprocessing.Event()
 
-    read_webcam_frames_hom(stop_event)
+    try:
+        read_webcam_frames_hom(stop_event)
+    except KeyboardInterrupt:
+        print("\nShutting down object detector...")
+    finally:
+        # Clean shutdown
+        if 'zed' in locals():
+            zed.close()
+        cv2.destroyAllWindows()
