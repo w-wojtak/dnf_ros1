@@ -23,14 +23,14 @@ The system consists of:
 
 ## Setup
 
-# Create virtual environment for object detection
+### Create virtual environment for object detection
 ```
 cd ~/dnf_ros1
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-# Install dependencies in venv
+### Install dependencies in venv
 ```
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip install ultralytics opencv-python numpy matplotlib
@@ -38,7 +38,7 @@ pip install rospkg catkin_pkg pyyaml
 python /usr/local/zed/get_python_api.py
 ```
 
-# Create ROS symlinks in venv
+### Create ROS symlinks in venv
 ```
 ln -s /opt/ros/noetic/lib/python3/dist-packages/rospy ~/dnf_ros1/venv/lib/python3.8/site-packages/
 ln -s /opt/ros/noetic/lib/python3/dist-packages/std_msgs ~/dnf_ros1/venv/lib/python3.8/site-packages/
