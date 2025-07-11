@@ -24,4 +24,21 @@ to run vision code:
 source venv_detection/bin/activate
 
 
+Terminal 3:
+cd ~/dnf_ros1
+source venv/bin/activate
+cd src/dnf_cognitive_architecture/scripts
+python object_detector.py
+
+
+"""
+
+
+"""
+table corners:
+upper left: x = -0.82, y = 0.06
+lower left: x = -0.82, y = 0.52
+upper right: x = 0.71, y = 0.06
+lower right: x = 0.71, y = 0.52
+
 """
