@@ -29,6 +29,8 @@ class DNFModel:
         self.x = np.arange(-self.x_lim, self.x_lim + self.dx, self.dx)
         self.t = np.arange(0, self.t_lim + self.dt, self.dt)
 
+        self.input_positions = [-60, -20, 20, 40]
+
         self.u_sm_history = []
         self.u_sm_2_history = []
         self.u_d_history = []
@@ -85,17 +87,35 @@ class DNFModel:
         self.line1, = self.ax1.plot(self.x, self.u_sm, 'b-', label="u_sm_1")
         self.line2, = self.ax2.plot(self.x, self.u_sm_2, 'r-', label="u_sm_2")
         
+        # Define object positions and labels
+        object_positions = [-60, -20, 20, 40]
+        object_labels = ['base', 'load', 'bearing', 'motor']
+
+        object_all = [-60, -40, -20, 0, 20, 40, 60]
+        object_labels_all = ['base', 'blue box', 'load', 'tool 1', 'bearing', 'motor', 'tool 2']
+        
         # Set up the axes
         for ax in [self.ax1, self.ax2]:
             ax.set_xlim(-self.x_lim, self.x_lim)
             ax.set_ylim(-2, 6)
-            ax.set_xlabel("x")
+            ax.set_xlabel("Objects")
             ax.set_ylabel("u(x)")
             ax.grid(True)
             ax.legend()
+            
+            # Set custom x-ticks at object positions
+            ax.set_xticks(object_all)
+            ax.set_xticklabels(object_labels_all)
+            # Rotate labels for better readability
+            ax.tick_params(axis='x', rotation=45)
+            
+            # Add vertical lines at object positions (optional)
+            for pos in object_all:
+                ax.axvline(x=pos, color='gray', linestyle='--', alpha=0.3)
         
         self.ax1.set_title("Sequence Memory Field 1 (Robot)")
         self.ax2.set_title("Sequence Memory Field 2 (Human)")
+
 
         # Create a timer for updating the plot
         self.timer = self.fig.canvas.new_timer(interval=100)  # 100ms interval
@@ -163,9 +183,9 @@ class DNFModel:
                 rospy.loginfo(f"Updated values - u_sm max={np.max(self.u_sm):.2f}, u_sm_2 max={np.max(self.u_sm_2):.2f}")
 
                 # Store history at specific positions
-                input_positions = [-40, 0, 40]
+                # input_positions = [-60, -20, 20, 40]
                 input_indices = [np.argmin(np.abs(self.x - pos))
-                                 for pos in input_positions]
+                                 for pos in self.input_positions]
 
                 u_sm_values_at_positions = [self.u_sm[idx]
                                             for idx in input_indices]
@@ -268,7 +288,7 @@ class DNFModel:
             
     def plot_activity_evolution(self, save_plot: bool = True, show_plot: bool = True):
         try:
-            input_positions = [-40, 0, 40]
+            # input_positions = [-40, 0, 40]
 
             u_sm_hist = np.array(self.u_sm_history)
             u_sm_2_hist = np.array(self.u_sm_2_history)
@@ -278,7 +298,7 @@ class DNFModel:
             fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
 
             # Plot u_sm (Agent 1)
-            for i, pos in enumerate(input_positions):
+            for i, pos in enumerate(self.input_positions):
                 axes[0].plot(time_steps, u_sm_hist[:, i], label=f'x = {pos}')
             axes[0].set_title('u_sm (Agent 1) over time at input positions')
             axes[0].set_ylabel('u_sm')
@@ -286,7 +306,7 @@ class DNFModel:
             axes[0].grid(True)
 
             # Plot u_sm_2 (Agent 2)
-            for i, pos in enumerate(input_positions):
+            for i, pos in enumerate(self.input_positions):
                 axes[1].plot(time_steps, u_sm_2_hist[:, i], label=f'x = {pos}')
             axes[1].set_title('u_sm_2 (Agent 2) over time at input positions')
             axes[1].set_ylabel('u_sm_2')
