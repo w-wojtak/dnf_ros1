@@ -46,7 +46,7 @@ except Exception as e:
     exit()
 
 # Add this at the start of your script, outside the function
-EXCLUDED_CLASSES = ['nut1', 'nut2']  # modify this list as needed
+EXCLUDED_CLASSES = ['nut1', 'nut2', 'blue box', 'green box', 'pole', 'screw', 'tool1', 'tool2']  # modify this list as needed
 
 # Define table boundaries
 TABLE_BOUNDS = {
