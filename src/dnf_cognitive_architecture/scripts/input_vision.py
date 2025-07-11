@@ -7,22 +7,13 @@ import json
 
 
 class InputMatrix(object):
-
     def __init__(self):
         # Initialize the ROS node
         rospy.init_node('input_matrix', anonymous=True)
 
-        # Create a publisher for both input matrices in a combined format
+        # Create a publisher for matrices in a combined format
         self.input_pub = rospy.Publisher(
             'input_matrices_combined', Float32MultiArray, queue_size=10)
-
-        # Create a subscriber for the threshold crossings topic
-        self.threshold_sub = rospy.Subscriber(
-            'threshold_crossings',
-            Float32MultiArray,
-            self.threshold_callback,
-            queue_size=10
-        )
         
         # Create a subscriber for object detections
         self.detection_sub = rospy.Subscriber(
@@ -41,45 +32,42 @@ class InputMatrix(object):
         self.dx = 0.2
         self.dt = 0.1
 
-        # Define input parameters for matrix 1
-        input_position = [-40, 0, 40]
-        amplitude = 5.0
-        width = 2.0
-        t_start_list = [1, 4, 7]
-        t_stop_list = [2, 5, 8]
+        # Object class to gaussian position mapping
+        self.object_positions = {
+            'base': -60,
+            'load': -20,
+            'bearing': 20,
+            'motor': 40
+        }
+        
+        # Store last known positions for movement detection
+        self.last_positions = {
+            'base': None,
+            'load': None,
+            'bearing': None,
+            'motor': None
+        }
+        
+        # Movement threshold
+        self.movement_threshold = 0.05
+        
+        # Gaussian parameters
+        self.amplitude = 5.0
+        self.width = 2.0
+        self.duration = 1.0  # 1 second duration
 
-        if len(input_position) != len(t_start_list) or len(input_position) != len(t_stop_list):
-            raise ValueError(
-                "input_position, t_start_list, and t_stop_list must have the same length.")
-
-        # Define Gaussian parameters for matrix 1
-        self.gaussian_params_1 = [
-            {'center': pos, 'amplitude': amplitude, 'width': width,
-             't_start': t_start, 't_stop': t_stop}
-            for pos, t_start, t_stop in zip(input_position, t_start_list, t_stop_list)
-        ]
-
-        t_start_list_2 = [1.5, 5, 7.5]
-        t_stop_list_2 = [2.5, 6, 8.5]
-
-        self.gaussian_params_2 = [
-            {'center': pos, 'amplitude': amplitude, 'width': width,
-             't_start': t_start, 't_stop': t_stop}
-            for pos, t_start, t_stop in zip(input_position, t_start_list_2, t_stop_list_2)
-        ]
-
-        # Initialize Gaussian parameters for matrix 2 (empty initially)
-        self.gaussian_params_3 = []
+        # Initialize lists to store active gaussians for both matrices
+        self.active_gaussians_matrix1 = []
+        self.active_gaussians_matrix2 = []
 
         # Define spatial and temporal grids
         self.x = np.arange(-self.x_lim, self.x_lim + self.dx, self.dx)
         self.t = np.arange(0, self.t_lim + self.dt, self.dt)
 
-        # Generate the input matrix for Gaussian parameters 1
-        self.input_matrix_1 = self.get_input_matrix(self.gaussian_params_1)
-        self.input_matrix_2 = self.get_input_matrix(self.gaussian_params_2)
-        self.input_matrix_3 = np.zeros(
-            (len(self.t), len(self.x)))  # Placeholder
+        # Initialize input matrices
+        self.input_matrix1 = np.zeros((len(self.t), len(self.x)))
+        self.input_matrix2 = np.zeros((len(self.t), len(self.x)))
+        self.input_matrix_3 = np.zeros((len(self.t), len(self.x)))
 
         # Initialize the current time index for publishing
         self.current_time_index = 0
@@ -87,137 +75,134 @@ class InputMatrix(object):
     def gaussian(self, center=0, amplitude=1.0, width=1.0):
         return amplitude * np.exp(-((self.x - center) ** 2) / (2 * (width ** 2)))
 
-    def get_input_matrix(self, params_list):
-        input_matrix = np.zeros((len(self.t), len(self.x)))
-        for params in params_list:
-            center = params['center']
-            amplitude = params['amplitude']
-            width = params['width']
-            t_start = params['t_start']
-            t_stop = params['t_stop']
+    def check_movement(self, object_name, new_x, new_y):
+        """Check if object has moved beyond threshold"""
+        if self.last_positions[object_name] is None:
+            self.last_positions[object_name] = {'x': new_x, 'y': new_y}
+            return False
+        
+        last_x = self.last_positions[object_name]['x']
+        last_y = self.last_positions[object_name]['y']
+        
+        dx = abs(new_x - last_x)
+        dy = abs(new_y - last_y)
+        
+        if dx > self.movement_threshold or dy > self.movement_threshold:
+            self.last_positions[object_name] = {'x': new_x, 'y': new_y}
+            return True
+        
+        return False
 
-            for i, t_val in enumerate(self.t):
-                if t_start <= t_val <= t_stop:
-                    input_matrix[i,
-                                 :] += self.gaussian(center, amplitude, width)
-        return input_matrix
+    def add_gaussian_input(self, object_name):
+        """Add a gaussian input for the specified object to both matrices"""
+        current_time = self.t[self.current_time_index]
+        t_start = current_time
+        t_stop = t_start + self.duration
+        
+        # Get the gaussian position for this object
+        center = self.object_positions[object_name]
+        
+        # Create gaussian parameters
+        gaussian_params = {
+            'center': center,
+            'amplitude': self.amplitude,
+            'width': self.width,
+            't_start': t_start,
+            't_stop': t_stop
+        }
+        
+        # Add to both matrices' active gaussians lists
+        self.active_gaussians_matrix1.append(gaussian_params.copy())
+        self.active_gaussians_matrix2.append(gaussian_params.copy())
+        
+        rospy.loginfo(f"Added gaussian input for {object_name} at position {center} starting at t={t_start:.2f}")
+
+    def update_input_matrices(self):
+        """Update both input matrices based on their active gaussians"""
+        current_time = self.t[self.current_time_index]
+        
+        # Update matrix 1
+        self.input_matrix1[self.current_time_index] = np.zeros(len(self.x))
+        active_gaussians_copy1 = self.active_gaussians_matrix1.copy()
+        
+        for gaussian in active_gaussians_copy1:
+            if gaussian['t_start'] <= current_time <= gaussian['t_stop']:
+                self.input_matrix1[self.current_time_index] += self.gaussian(
+                    center=gaussian['center'],
+                    amplitude=gaussian['amplitude'],
+                    width=gaussian['width']
+                )
+            elif current_time > gaussian['t_stop']:
+                self.active_gaussians_matrix1.remove(gaussian)
+
+        # Update matrix 2
+        self.input_matrix2[self.current_time_index] = np.zeros(len(self.x))
+        active_gaussians_copy2 = self.active_gaussians_matrix2.copy()
+        
+        for gaussian in active_gaussians_copy2:
+            if gaussian['t_start'] <= current_time <= gaussian['t_stop']:
+                self.input_matrix2[self.current_time_index] += self.gaussian(
+                    center=gaussian['center'],
+                    amplitude=gaussian['amplitude'],
+                    width=gaussian['width']
+                )
+            elif current_time > gaussian['t_stop']:
+                self.active_gaussians_matrix2.remove(gaussian)
 
     def detection_callback(self, msg):
         """Callback for object detection messages"""
         try:
-            # Parse the JSON data
             detection_data = json.loads(msg.data)
-            
-            # Extract detections
             detections = detection_data.get('detections', [])
             
-            # Print header
-            rospy.loginfo("\n" + "="*60)
-            rospy.loginfo("Object Detections Received at {}".format(
-                detection_data.get('frame_time', 'Unknown time')))
-            rospy.loginfo("-"*60)
-            
-            # Print each detection
             for detection in detections:
                 object_name = detection.get('object', 'Unknown')
                 position = detection.get('position', {})
-                confidence = detection.get('confidence', 0.0)
-                bbox = detection.get('bbox', [])
                 
-                rospy.loginfo("Object: {:<15} | Position: x={:>6.2f}, y={:>6.2f}, z={:>6.2f} | Confidence: {:.2f}".format(
-                    object_name,
-                    position.get('x', 0.0),
-                    position.get('y', 0.0),
-                    position.get('z', 0.0),
-                    confidence
-                ))
+                x = position.get('x', 0.0)
+                y = position.get('y', 0.0)
+                
+                # Check if this is one of our tracked objects
+                if object_name in self.object_positions:
+                    # Check for movement
+                    if self.check_movement(object_name, x, y):
+                        rospy.loginfo(f"Movement detected for {object_name}")
+                        self.add_gaussian_input(object_name)
             
-            if not detections:
-                rospy.loginfo("No objects detected")
+            # Update input matrices with all active gaussians
+            self.update_input_matrices()
             
-            rospy.loginfo("="*60 + "\n")
-            
-        except json.JSONDecodeError as e:
-            rospy.logerr("Failed to parse JSON from /object_detections: {}".format(e))
         except Exception as e:
-            rospy.logerr("Error processing detection message: {}".format(e))
-
-    def threshold_callback(self, msg):
-        # Extract the threshold crossing value
-        self.received_value = msg.data[0]
-        rospy.loginfo(
-            "Received threshold crossing value: {:.2f}".format(
-                self.received_value)
-        )
-
-        # Determine the input position based on the received threshold crossing value
-        if -45 <= self.received_value <= -35:
-            input_position = -40  # Left input position
-        elif -5 <= self.received_value <= 5:
-            input_position = 0  # Center input position
-        elif 35 <= self.received_value <= 45:
-            input_position = 40  # Right input position
-        else:
-            rospy.logwarn(
-                "Threshold crossing value is outside expected ranges.")
-            return  # Exit if the value is not within valid ranges
-
-        # Define the delay in time steps
-        delay = 5
-
-        # Calculate t_start and t_stop for the updated Gaussian input
-        t_start = self.t[self.current_time_index] + delay * self.dt
-        t_stop = t_start + (self.dt * 10)  # Keep the duration of input fixed
-
-        # Update gaussian_params_2 with new values
-        self.gaussian_params_3 = [
-            {'center': input_position, 'amplitude': 5.0, 'width': 2.0,
-             't_start': t_start, 't_stop': t_stop}
-        ]
-
-        # Regenerate input_matrix_2 with updated parameters
-        self.input_matrix_3 = self.get_input_matrix(self.gaussian_params_3)
-
-        rospy.loginfo(
-            "Updated gaussian_params_3: {}".format(self.gaussian_params_3)
-        )
+            rospy.logerr(f"Error processing detection message: {e}")
 
     def publish_slices(self, event):
         if self.current_time_index < len(self.t):
-            # Combine the two matrices into a single array (nested)
+            # Update input matrices with active gaussians
+            self.update_input_matrices()
+            
+            # Create combined input (matrix 1, matrix 2, and matrix 3)
             combined_input = [
-                self.input_matrix_1[self.current_time_index].tolist(),
-                self.input_matrix_2[self.current_time_index].tolist(),
+                self.input_matrix1[self.current_time_index].tolist(),
+                self.input_matrix2[self.current_time_index].tolist(),
                 self.input_matrix_3[self.current_time_index].tolist()
             ]
 
-            # Create the message
+            # Create and publish message
             msg = Float32MultiArray()
-            # Flatten the nested list and assign it to msg.data
             msg.data = [item for sublist in combined_input for item in sublist]
-
-            # Publish the message
             self.input_pub.publish(msg)
 
             # Log publication
             rospy.loginfo(
-                "Published t={:.2f}, "
-                "Max (Matrix 1): {:.2f}, "
-                "Max (Matrix 2): {:.2f}, "
-                "Max (Matrix 3): {:.2f}".format(
-                    self.t[self.current_time_index],
-                    self.input_matrix_1[self.current_time_index].max(),
-                    self.input_matrix_2[self.current_time_index].max(),
-                    self.input_matrix_3[self.current_time_index].max()
-                )
+                f"Published t={self.t[self.current_time_index]:.2f}, "
+                f"Max matrix1: {self.input_matrix1[self.current_time_index].max():.2f}, "
+                f"Max matrix2: {self.input_matrix2[self.current_time_index].max():.2f}"
             )
 
             self.current_time_index += 1
         else:
-            # Stop timer when all slices are published
             rospy.loginfo("Completed publishing all time slices.")
             self.timer.shutdown()
-
 
 def main():
     try:
@@ -226,6 +211,6 @@ def main():
     except rospy.ROSInterruptException:
         pass
 
-
 if __name__ == '__main__':
     main()
+
