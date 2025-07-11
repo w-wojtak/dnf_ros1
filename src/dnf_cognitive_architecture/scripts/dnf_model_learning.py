@@ -288,7 +288,6 @@ class DNFModel:
             
     def plot_activity_evolution(self, save_plot: bool = True, show_plot: bool = True):
         try:
-            # input_positions = [-40, 0, 40]
 
             u_sm_hist = np.array(self.u_sm_history)
             u_sm_2_hist = np.array(self.u_sm_2_history)
@@ -297,9 +296,17 @@ class DNFModel:
 
             fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
 
+            # Define object names for each position
+            object_names = {
+                -60: 'base',
+                -20: 'load',
+                20: 'bearing',
+                40: 'motor'
+            }
+
             # Plot u_sm (Agent 1)
             for i, pos in enumerate(self.input_positions):
-                axes[0].plot(time_steps, u_sm_hist[:, i], label=f'x = {pos}')
+                axes[0].plot(time_steps, u_sm_hist[:, i], label=object_names[pos])
             axes[0].set_title('u_sm (Agent 1) over time at input positions')
             axes[0].set_ylabel('u_sm')
             axes[0].legend()
@@ -307,11 +314,12 @@ class DNFModel:
 
             # Plot u_sm_2 (Agent 2)
             for i, pos in enumerate(self.input_positions):
-                axes[1].plot(time_steps, u_sm_2_hist[:, i], label=f'x = {pos}')
+                axes[1].plot(time_steps, u_sm_2_hist[:, i], label=object_names[pos])
             axes[1].set_title('u_sm_2 (Agent 2) over time at input positions')
             axes[1].set_ylabel('u_sm_2')
             axes[1].legend()
             axes[1].grid(True)
+
 
             # Plot u_d (center)
             axes[2].plot(time_steps, u_d_hist, label='center x=0', color='black')
