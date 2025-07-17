@@ -30,15 +30,16 @@ class OutputNode(object):
                 "Received threshold crossing value: {:.2f}".format(self.received_value))
 
         if self.received_value is not None:
-            if -45 <= self.received_value <= -35:
-                print("Message: Threshold crossed near the left input position.")
-            elif -5 <= self.received_value <= 5:
-                print("Message: Threshold crossed near the center input position.")
+            if -65 <= self.received_value <= -55:
+                rospy.loginfo("HAND OVER BASE")
+            elif -25 <= self.received_value <= -15:
+                rospy.loginfo("HAND OVER LOAD")
+            elif 15 <= self.received_value <= 25:
+                rospy.loginfo("HAND OVER BEARING")
             elif 35 <= self.received_value <= 45:
-                print("Message: Threshold crossed near the right input position.")
+                rospy.loginfo("HAND OVER MOTOR")
             else:
-                print(
-                    "Message: Threshold crossing detected outside expected input positions.")
+                rospy.loginfo("Message: Threshold crossing detected outside expected input positions.")
 
         else:
             rospy.loginfo("Received message with empty data.")
