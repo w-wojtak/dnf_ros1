@@ -84,8 +84,8 @@ class DNFModel:
         self.ax2 = self.fig.add_subplot(122)
         
         # Create line objects
-        self.line1, = self.ax1.plot(self.x, self.u_sm, 'b-', label="u_sm_1")
-        self.line2, = self.ax2.plot(self.x, self.u_sm_2, 'r-', label="u_sm_2")
+        self.line1, = self.ax1.plot(self.x, self.u_sm, 'b-', label="u_sm")
+        self.line2, = self.ax2.plot(self.x, self.u_d, 'r-', label="u_d")
         
         # Define object positions and labels
         object_positions = [-60, -20, 20, 40]
@@ -95,13 +95,13 @@ class DNFModel:
         object_labels_all = ['base', 'blue box', 'load', 'tool 1', 'bearing', 'motor', 'tool 2']
         
         # Set up the axes
-        for ax in [self.ax1, self.ax2]:
+        for ax in [self.ax1]:
             ax.set_xlim(-self.x_lim, self.x_lim)
             ax.set_ylim(-2, 6)
             ax.set_xlabel("Objects")
             ax.set_ylabel("u(x)")
             ax.grid(True)
-            ax.legend()
+            # ax.legend()
             
             # Set custom x-ticks at object positions
             ax.set_xticks(object_all)
@@ -113,8 +113,14 @@ class DNFModel:
             for pos in object_all:
                 ax.axvline(x=pos, color='gray', linestyle='--', alpha=0.3)
         
-        self.ax1.set_title("Sequence Memory Field 1 (Robot)")
-        self.ax2.set_title("Sequence Memory Field 2 (Human)")
+        self.ax1.set_title("Sequence Memory Field")
+        self.ax2.set_title("Task Duration Field")
+
+        self.ax2.set_xticks([0])
+        self.ax2.set_xticklabels(['task start'])
+        self.ax2.tick_params(axis='x', rotation=0) 
+        self.ax2.set_ylim(-2, 6)
+        self.ax2.grid(True)
 
 
         # Create a timer for updating the plot
