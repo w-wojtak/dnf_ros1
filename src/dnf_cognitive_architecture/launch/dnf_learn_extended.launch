@@ -1,0 +1,5 @@
+<!-- dnf_learn.launch -->
+<launch>
+  <node pkg="dnf_cognitive_architecture" type="input_matrix.py" name="input_matrix" output="screen"/>
+  <node pkg="dnf_cognitive_architecture" type="dnf_model_learning_extended.py" name="dnf_model_learning_extended" output="screen"/>
+</launch>

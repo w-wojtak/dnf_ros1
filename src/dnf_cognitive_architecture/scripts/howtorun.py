@@ -28,7 +28,7 @@ Terminal 3:
 cd ~/dnf_ros1
 source venv/bin/activate
 cd src/dnf_cognitive_architecture/scripts
-python object_detector.py
+python object_detector_table.py
 
 
 """

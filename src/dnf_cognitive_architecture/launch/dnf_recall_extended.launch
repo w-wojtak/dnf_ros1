@@ -1,0 +1,18 @@
+<launch>
+  <arg name="trial_number" default="1" />
+
+  <!-- Input matrix node -->
+  <node pkg="dnf_cognitive_architecture" type="input_matrix.py" name="input_matrix" output="screen"/>
+
+  <!-- Recall nodes -->
+  <node pkg="dnf_cognitive_architecture" type="dnf_model_recall_extended.py" name="dnf_model_recall_extended" output="screen">
+    <param name="trial_number" value="$(arg trial_number)" />
+  </node>
+
+  <!-- Output node -->
+  <node pkg="dnf_cognitive_architecture" type="output_node_extended.py" name="output_node_extended" output="screen"/>
+</launch>
+
+
+<!-- The default value is 1, but you can override it when launching:
+roslaunch your_launch_file.launch trial_number:=3 -->
