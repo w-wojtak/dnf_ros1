@@ -32,7 +32,6 @@ class DNFModel:
         self.input_positions = [-60, -20, 20, 40]
 
         self.u_sm_history = []
-        # self.u_sm_2_history = []
         self.u_d_history = []
 
         # Lock for thread safety
@@ -47,17 +46,11 @@ class DNFModel:
         self.tau_h_sm = 20
         self.theta_sm = 1.5
 
-        # self.h_0_sm_2 = 0
-        # self.theta_sm_2 = 1.5
-
         self.kernel_pars_sm = (1, 0.7, 0.9)
         self.w_hat_sm = np.fft.fft(self.kernel_osc(*self.kernel_pars_sm))
 
         self.u_sm = self.h_0_sm * np.ones(np.shape(self.x))
         self.h_u_sm = self.h_0_sm * np.ones(np.shape(self.x))
-
-        # self.u_sm_2 = self.h_0_sm_2 * np.ones(np.shape(self.x))
-        # self.h_u_sm_2 = self.h_0_sm_2 * np.ones(np.shape(self.x))
 
         # Initialize detection field BEFORE creating subscriber
         self.h_0_d = 0
@@ -70,9 +63,8 @@ class DNFModel:
         self.u_d = self.h_0_d * np.ones(np.shape(self.x))
         self.h_u_d = self.h_0_d * np.ones(np.shape(self.x))
 
-        # Add these debug lines
+        # debug
         rospy.loginfo(f"Initial u_sm shape: {self.u_sm.shape}, values: min={np.min(self.u_sm)}, max={np.max(self.u_sm)}")
-        # rospy.loginfo(f"Initial u_sm_2 shape: {self.u_sm_2.shape}, values: min={np.min(self.u_sm_2)}, max={np.max(self.u_sm_2)}")
 
         # NOW create the subscriber after all fields are initialized
         self.subscriber = rospy.Subscriber(
@@ -159,19 +151,12 @@ class DNFModel:
                     np.fft.ifftshift(
                         np.real(np.fft.ifft(f_hat_d * self.w_hat_d)))
 
-                # Sequence memory field 1 dynamics
+                # Sequence memory field dynamics
                 f_sm = np.heaviside(self.u_sm - self.theta_sm, 1)
                 f_hat_sm = np.fft.fft(f_sm)
                 conv_sm = self.dx * \
                     np.fft.ifftshift(
                         np.real(np.fft.ifft(f_hat_sm * self.w_hat_sm)))
-
-                # # Sequence memory field 2 dynamics
-                # f_sm_2 = np.heaviside(self.u_sm_2 - self.theta_sm_2, 1)
-                # f_hat_sm_2 = np.fft.fft(f_sm_2)
-                # conv_sm_2 = self.dx * \
-                #     np.fft.ifftshift(
-                #         np.real(np.fft.ifft(f_hat_sm_2 * self.w_hat_sm)))
 
                 # Update fields
                 self.h_u_d += self.dt / self.tau_h_d * f_d
@@ -182,24 +167,13 @@ class DNFModel:
                 self.u_sm += self.dt * (-self.u_sm + conv_sm +
                                         input_agent1 + self.h_u_sm)
 
-                # self.h_u_sm_2 += self.dt / self.tau_h_sm * f_sm_2
-                # self.u_sm_2 += self.dt * \
-                #     (-self.u_sm_2 + conv_sm_2 + input_agent2 + self.h_u_sm_2)
-                
-                # rospy.loginfo(f"Updated values - u_sm max={np.max(self.u_sm):.2f}, u_sm_2 max={np.max(self.u_sm_2):.2f}")
-
                 # Store history at specific positions
-                # input_positions = [-60, -20, 20, 40]
                 input_indices = [np.argmin(np.abs(self.x - pos))
                                  for pos in self.input_positions]
 
                 u_sm_values_at_positions = [self.u_sm[idx]
                                             for idx in input_indices]
                 self.u_sm_history.append(u_sm_values_at_positions)
-
-                # u_sm_2_values_at_positions = [self.u_sm_2[idx]
-                #                               for idx in input_indices]
-                # self.u_sm_2_history.append(u_sm_2_values_at_positions)
 
                 center_index = len(self.u_d) // 2
                 self.u_d_history.append(self.u_d[center_index])
@@ -263,11 +237,9 @@ class DNFModel:
             
             # Save with full paths and error checking
             u_sm_path = os.path.join(data_dir, f"u_sm_{timestamp}.npy")
-            # u_sm_2_path = os.path.join(data_dir, f"u_sm_2_{timestamp}.npy")
             u_d_path = os.path.join(data_dir, f"u_d_{timestamp}.npy")
             
             np.save(u_sm_path, self.u_sm)
-            # np.save(u_sm_2_path, self.u_sm_2)
             np.save(u_d_path, self.u_d)
             
             # Verify files were created
@@ -275,11 +247,6 @@ class DNFModel:
                 rospy.loginfo(f"Successfully saved u_sm to {u_sm_path}")
             else:
                 rospy.logerr(f"Failed to save u_sm to {u_sm_path}")
-                
-            # if os.path.exists(u_sm_2_path):
-            #     rospy.loginfo(f"Successfully saved u_sm_2 to {u_sm_2_path}")
-            # else:
-            #     rospy.logerr(f"Failed to save u_sm_2 to {u_sm_2_path}")
                 
             if os.path.exists(u_d_path):
                 rospy.loginfo(f"Successfully saved u_d to {u_d_path}")
@@ -296,7 +263,6 @@ class DNFModel:
         try:
 
             u_sm_hist = np.array(self.u_sm_history)
-            # u_sm_2_hist = np.array(self.u_sm_2_history)
             u_d_hist = np.array(self.u_d_history)
             time_steps = np.arange(len(u_sm_hist)) * self.dt
 
@@ -310,22 +276,13 @@ class DNFModel:
                 40: 'motor'
             }
 
-            # Plot u_sm (Agent 1)
+            # Plot u_sm 
             for i, pos in enumerate(self.input_positions):
                 axes[0].plot(time_steps, u_sm_hist[:, i], label=object_names[pos])
-            axes[0].set_title('u_sm (Agent 1) over time at input positions')
+            axes[0].set_title('u_sm over time at input positions')
             axes[0].set_ylabel('u_sm')
             axes[0].legend()
             axes[0].grid(True)
-
-            # # Plot u_sm_2 (Agent 2)
-            # for i, pos in enumerate(self.input_positions):
-            #     axes[1].plot(time_steps, u_sm_2_hist[:, i], label=object_names[pos])
-            # axes[1].set_title('u_sm_2 (Agent 2) over time at input positions')
-            # axes[1].set_ylabel('u_sm_2')
-            # axes[1].legend()
-            # axes[1].grid(True)
-
 
             # Plot u_d (center)
             axes[1].plot(time_steps, u_d_hist, label='center x=0', color='black')
@@ -360,8 +317,6 @@ class DNFModel:
             rospy.logerr(f"Error plotting activity evolution: {e}")
             import traceback
             rospy.logerr(traceback.format_exc())
-
-
 
 
     def shutdown_hook(self):
