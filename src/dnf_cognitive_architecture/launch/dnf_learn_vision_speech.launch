@@ -1,13 +1,23 @@
 <!-- dnf_learn.launch -->
 <launch>
+  <!-- Argument to switch between mock and real speech recognition -->
+  <arg name="use_mock_speech" default="true" />
+
   <node pkg="dnf_cognitive_architecture" type="input_vision.py" name="input_vision" output="screen"/>
-      <!-- Mock Speech Recognition Node -->
-  <node name="mock_speech_recognition" pkg="your_package_name" type="mock_speech_recognition.py" output="screen">
-      <!-- Delay before sending "lets start" command (seconds) -->
-      <param name="start_delay" value="1.0" />
       
-      <!-- Delay before sending "I have finished" command (seconds) -->
-      <param name="finished_delay" value="15.0" />
+      
+  <!-- Mock Speech Recognition Node (only if using mock) -->
+  <group if="$(arg use_mock_speech)">
+      <node name="mock_speech_recognition" pkg="dnf_cognitive_architecture" type="mock_speech_recognition.py" output="screen">
+          <param name="start_delay" value="1.0" />
+          <param name="finished_delay" value="15.0" />
+      </node>
+  </group>
+  
+  <!-- DNF Learning Node -->
+  <node name="dnf_model_learning" pkg="dnf_cognitive_architecture" type="dnf_model_learning_speech.py" output="screen">
+      <param name="use_mock_speech" value="$(arg use_mock_speech)" />
   </node>
-  <node pkg="dnf_cognitive_architecture" type="dnf_model_learning_speech.py" name="dnf_model_learning" output="screen"/>
+
+
 </launch>

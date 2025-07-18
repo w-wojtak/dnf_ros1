@@ -10,7 +10,7 @@ import os
 import matplotlib.pyplot as plt
 plt.style.use('default')  # Use default style
 import matplotlib.animation as anim
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, String
 from datetime import datetime
 
 
@@ -41,6 +41,12 @@ class DNFModel:
         self.time_counter = 0.0
         self.current_step = 1
 
+        # Speech command flags
+        self.learning_started = False
+        self.learning_finished = False
+        self.next_object_requested = False
+        self.speech_commands_received = []
+
         # Initialize fields for sequence memory field 1
         self.h_0_sm = 0
         self.tau_h_sm = 20
@@ -69,6 +75,14 @@ class DNFModel:
         # NOW create the subscriber after all fields are initialized
         self.subscriber = rospy.Subscriber(
             'input_matrices_combined', Float32MultiArray, self.input_callback, queue_size=10)
+        
+        # Subscribe to speech commands (can switch between mock and real)
+        use_mock = rospy.get_param('~use_mock_speech', True)
+        speech_topic = '/mock_speech_recognition/command' if use_mock else '/speech_recognition/command'
+        self.speech_subscriber = rospy.Subscriber(
+            speech_topic, String, self.speech_callback, queue_size=10)
+        
+        rospy.loginfo(f"Listening to speech commands on: {speech_topic}")
 
         # Setup the plot window
         self.fig = plt.figure(figsize=(10, 5))
@@ -121,6 +135,36 @@ class DNFModel:
         self.timer.start()
 
         rospy.loginfo("DNF Model initialized successfully")
+
+
+    def speech_callback(self, msg):
+        """Handle speech commands"""
+        command = msg.data.lower()
+        
+        with self._lock:
+            self.speech_commands_received.append((command, rospy.get_time()))
+            
+            if "lets start" in command or "let's start" in command:
+                if not self.learning_started:
+                    self.learning_started = True
+                    rospy.loginfo("SPEECH: Learning started!")
+                    # You could trigger any initialization here
+                    
+            elif "i have finished" in command or "finished" in command:
+                if not self.learning_finished:
+                    self.learning_finished = True
+                    rospy.loginfo("SPEECH: Learning finished signal received!")
+                    # Trigger save and shutdown
+                    self.save_sequence_memory()
+                    rospy.signal_shutdown("Learning finished by speech command")
+                    
+            elif "i need next object" in command or "next object" in command:
+                self.next_object_requested = True
+                rospy.loginfo("SPEECH: Next object requested!")
+                # You could trigger object switching logic here
+                
+            else:
+                rospy.logwarn(f"SPEECH: Unknown command: '{command}'")
 
     def input_callback(self, msg):
         try:
