@@ -14,7 +14,7 @@ print("Loaded field with shape:", u_sm.shape)
 # Plot
 plt.figure(figsize=(8, 4))
 plt.plot(u_sm)
-plt.title('u_sm Vector')
+plt.title('u_sm from file')
 plt.xlabel('Index')
 plt.ylabel('Value')
 plt.grid(True)

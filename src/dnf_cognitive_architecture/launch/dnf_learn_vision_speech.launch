@@ -1,0 +1,6 @@
+<!-- dnf_learn.launch -->
+<launch>
+  <node pkg="dnf_cognitive_architecture" type="input_vision.py" name="input_vision" output="screen"/>
+  <node pkg="dnf_cognitive_architecture" type="mock_speech_recognition.py" name="mock_speech_recognition" output="screen"/>
+  <node pkg="dnf_cognitive_architecture" type="dnf_model_learning_speech.py" name="dnf_model_learning" output="screen"/>
+</launch>
