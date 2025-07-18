@@ -2,8 +2,11 @@
 
 import rospy
 from std_msgs.msg import String
-import random
-import time
+import threading
+import sys
+import select
+import termios
+import tty
 
 class MockSpeechRecognitionNode:
     def __init__(self):
@@ -13,47 +16,43 @@ class MockSpeechRecognitionNode:
         # Create publisher for mock speech commands
         self.speech_pub = rospy.Publisher('/mock_speech_recognition/command', String, queue_size=10)
         
-        # Define available commands - easy to extend by adding more entries
-        self.commands = [
-            "pick up the blue box",
-            "move to the base",
-            "stop operation"
-        ]
+        # Define the three commands
+        self.start_command = "lets start"
+        self.finished_command = "I have finished"
+        self.next_object_command = "i need next object"
         
-        # Optional: Add command variations for more realistic simulation
-        self.command_variations = {
-            "pick up the blue box": ["pick up blue box", "grab the blue box", "get blue box"],
-            "move to the base": ["go to base", "return to base", "move to base position"],
-            "stop operation": ["stop", "halt", "emergency stop"]
-        }
+        # Timing parameters
+        self.start_delay = rospy.get_param('~start_delay', 1.0)  # seconds
+        self.finished_delay = rospy.get_param('~finished_delay', 15.0)  # seconds
         
-        # Parameters
-        self.publish_rate = rospy.get_param('~publish_rate', 0.5)  # Hz
-        self.random_mode = rospy.get_param('~random_mode', True)
-        self.command_index = 0
+        # Flag to track if finished command has been sent
+        self.finished_sent = False
+        
+        # Save terminal settings for keyboard input
+        self.old_settings = termios.tcgetattr(sys.stdin)
         
         rospy.loginfo("Mock Speech Recognition Node started")
         rospy.loginfo(f"Publishing to: /mock_speech_recognition/command")
-        rospy.loginfo(f"Available commands: {self.commands}")
-        rospy.loginfo(f"Publishing rate: {self.publish_rate} Hz")
-        rospy.loginfo(f"Random mode: {self.random_mode}")
+        rospy.loginfo(f"Commands:")
+        rospy.loginfo(f"  - '{self.start_command}' (after {self.start_delay}s)")
+        rospy.loginfo(f"  - '{self.finished_command}' (after {self.finished_delay}s)")
+        rospy.loginfo(f"  - '{self.next_object_command}' (press SPACE key)")
+        rospy.loginfo("Press 'q' to quit")
         
-    def get_next_command(self):
-        """Get the next command to publish"""
-        if self.random_mode:
-            # Random selection from available commands
-            base_command = random.choice(self.commands)
-            
-            # Optionally use a variation of the command
-            if base_command in self.command_variations and random.random() < 0.3:
-                return random.choice(self.command_variations[base_command])
-            else:
-                return base_command
-        else:
-            # Sequential mode - cycle through commands
-            command = self.commands[self.command_index]
-            self.command_index = (self.command_index + 1) % len(self.commands)
-            return command
+        # Schedule automatic commands
+        self.schedule_automatic_commands()
+        
+    def schedule_automatic_commands(self):
+        """Schedule the automatic commands"""
+        # Schedule "lets start" command
+        start_timer = threading.Timer(self.start_delay, self.publish_start_command)
+        start_timer.daemon = True
+        start_timer.start()
+        
+        # Schedule "I have finished" command
+        finished_timer = threading.Timer(self.finished_delay, self.publish_finished_command)
+        finished_timer.daemon = True
+        finished_timer.start()
     
     def publish_command(self, command):
         """Publish a speech command"""
@@ -62,17 +61,53 @@ class MockSpeechRecognitionNode:
         self.speech_pub.publish(msg)
         rospy.loginfo(f"Published command: '{command}'")
     
+    def publish_start_command(self):
+        """Publish the start command"""
+        if not rospy.is_shutdown():
+            self.publish_command(self.start_command)
+    
+    def publish_finished_command(self):
+        """Publish the finished command"""
+        if not rospy.is_shutdown() and not self.finished_sent:
+            self.publish_command(self.finished_command)
+            self.finished_sent = True
+    
+    def publish_next_object_command(self):
+        """Publish the next object command"""
+        if not rospy.is_shutdown():
+            self.publish_command(self.next_object_command)
+    
+    def get_key(self):
+        """Get keyboard input (non-blocking)"""
+        tty.setraw(sys.stdin.fileno())
+        rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+        if rlist:
+            key = sys.stdin.read(1)
+        else:
+            key = ''
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
+        return key
+    
     def run(self):
-        """Main loop"""
-        rate = rospy.Rate(self.publish_rate)
-        
-        while not rospy.is_shutdown():
-            # Get and publish next command
-            command = self.get_next_command()
-            self.publish_command(command)
+        """Main loop - monitor keyboard input"""
+        try:
+            tty.setcbreak(sys.stdin.fileno())
             
-            # Sleep to maintain publish rate
-            rate.sleep()
+            while not rospy.is_shutdown():
+                key = self.get_key()
+                
+                if key == ' ':  # Space key
+                    self.publish_next_object_command()
+                elif key == 'q' or key == '\x03':  # 'q' or Ctrl+C
+                    rospy.loginfo("Quitting...")
+                    break
+                
+                # Small sleep to prevent CPU spinning
+                rospy.sleep(0.01)
+                
+        finally:
+            # Restore terminal settings
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
 
 def main():
     try:
@@ -80,6 +115,11 @@ def main():
         node.run()
     except rospy.ROSInterruptException:
         pass
+    except KeyboardInterrupt:
+        rospy.loginfo("Keyboard interrupt received")
+    finally:
+        # Make sure terminal settings are restored
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, termios.tcgetattr(sys.stdin))
 
 if __name__ == '__main__':
     main()

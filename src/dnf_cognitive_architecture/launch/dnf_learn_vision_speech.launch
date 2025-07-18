@@ -1,6 +1,13 @@
 <!-- dnf_learn.launch -->
 <launch>
   <node pkg="dnf_cognitive_architecture" type="input_vision.py" name="input_vision" output="screen"/>
-  <node pkg="dnf_cognitive_architecture" type="mock_speech_recognition.py" name="mock_speech_recognition" output="screen"/>
+      <!-- Mock Speech Recognition Node -->
+  <node name="mock_speech_recognition" pkg="your_package_name" type="mock_speech_recognition.py" output="screen">
+      <!-- Delay before sending "lets start" command (seconds) -->
+      <param name="start_delay" value="1.0" />
+      
+      <!-- Delay before sending "I have finished" command (seconds) -->
+      <param name="finished_delay" value="15.0" />
+  </node>
   <node pkg="dnf_cognitive_architecture" type="dnf_model_learning_speech.py" name="dnf_model_learning" output="screen"/>
 </launch>
