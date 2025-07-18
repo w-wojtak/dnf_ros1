@@ -13,10 +13,17 @@ catkin_package()
 install(
   PROGRAMS
     scripts/dnf_model_learning.py
+    scripts/dnf_model_learning_speech.py
     scripts/dnf_model_recall.py
+    scripts/dnf_model_learning_extended.py
+    scripts/dnf_model_recall_extended.py
     scripts/input_matrix.py
+    scripts/input_vision.py
     scripts/output_node.py
-    scripts/rabbit_subscriber_node.py
+    scripts/output_node_extended.py
+    scripts/object_detector.py
+    scripts/object_detector_table.py
+    scripts/mock_speech_recognition.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
