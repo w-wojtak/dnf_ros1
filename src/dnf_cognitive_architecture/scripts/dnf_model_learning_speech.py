@@ -84,6 +84,12 @@ class DNFModel:
         
         rospy.loginfo(f"Listening to speech commands on: {speech_topic}")
 
+
+        # Subscribe to robot gripper acknowledgements
+        self.ack_subscriber = rospy.Subscriber(
+        '/next_object_acknowledge', Bool, self.acknowledge_callback, queue_size=10)
+    
+
         # Setup the plot window
         self.fig = plt.figure(figsize=(10, 5))
         self.ax1 = self.fig.add_subplot(121)
@@ -165,6 +171,17 @@ class DNFModel:
                 
             else:
                 rospy.logwarn(f"SPEECH: Unknown command: '{command}'")
+
+
+    def acknowledge_callback(self, msg):
+        """Handle acknowledgment from robot gripper"""
+        if msg.data:
+            with self._lock:
+                if self.next_object_requested:
+                    self.next_object_requested = False
+                    rospy.loginfo("DNF: Next object request acknowledged by robot gripper")
+                else:
+                    rospy.logwarn("DNF: Received acknowledgment but no request was pending")
 
     def input_callback(self, msg):
         try:

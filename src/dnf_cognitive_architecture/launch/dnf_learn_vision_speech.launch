@@ -13,7 +13,15 @@
           <param name="finished_delay" value="15.0" />
       </node>
   </group>
-  
+
+    <!-- Mock Robot Gripper Node -->
+    <group if="$(arg use_mock_gripper)">
+        <node name="mock_gripper" pkg="dnf_cognitive_architecture" type="mock_robot_gripper" output="screen">
+            <param name="min_process_time" value="2.0" />
+            <param name="max_process_time" value="5.0" />
+        </node>
+    </group>
+    
   <!-- DNF Learning Node -->
   <node name="dnf_model_learning" pkg="dnf_cognitive_architecture" type="dnf_model_learning_speech.py" output="screen">
       <param name="use_mock_speech" value="$(arg use_mock_speech)" />

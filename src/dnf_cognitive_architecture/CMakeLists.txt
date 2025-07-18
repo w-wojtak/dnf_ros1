@@ -24,6 +24,7 @@ install(
     scripts/object_detector.py
     scripts/object_detector_table.py
     scripts/mock_speech_recognition.py
+    scripts/mock_gripper.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
