@@ -50,61 +50,68 @@ class DNFModelWM:
         self.fig, axes = plt.subplots(2, 3, figsize=(15, 9))
         self.ax1, self.ax2, self.ax3, self.ax4, self.ax5, self.ax6 = axes.flatten()
 
+        # Define object positions and labels
+        object_all = [-60, -40, -20, 0, 20, 40, 60]
+        object_labels_all = ['base', 'blue box', 'load', 'tool 1', 'bearing', 'motor', 'tool 2']
+
         # Plot for u_act on ax1
         self.line_act, = self.ax1.plot(
             self.x, np.zeros_like(self.x), label="u_act")
-        self.ax1.set_xlim(-self.x_lim, self.x_lim)
-        self.ax1.set_ylim(-5, 5)  # Adjust based on expected amplitude
-        self.ax1.set_xlabel("x")
         self.ax1.set_ylabel("u_act(x)")
         self.ax1.set_title("Action Onset Field")
         self.ax1.legend()
 
-        # Plot for u_wm on ax2
+        # Plot for u_wm on ax3
         self.line_wm, = self.ax3.plot(
             self.x, np.zeros_like(self.x), label="u_wm")
-        self.ax3.set_xlim(-self.x_lim, self.x_lim)
-        self.ax3.set_ylim(-3, 5)  # Adjust based on expected amplitude
-        self.ax3.set_xlabel("x")
         self.ax3.set_ylabel("u_wm(x)")
         self.ax3.set_title("Working Memory Field")
         self.ax3.legend()
 
+        # Plot for u_f1 on ax4
         self.line_f1, = self.ax4.plot(
             self.x, np.zeros_like(self.x), label="u_f1")
-        self.ax4.set_xlim(-self.x_lim, self.x_lim)
-        self.ax4.set_ylim(-5, 5)  # Adjust based on expected amplitude
-        self.ax4.set_xlabel("x")
         self.ax4.set_ylabel("u_f1(x)")
         self.ax4.set_title("Feedback 1 Field")
         self.ax4.legend()
 
+        # Plot for u_f2 on ax5
         self.line_f2, = self.ax5.plot(
             self.x, np.zeros_like(self.x), label="u_f2")
-        self.ax5.set_xlim(-self.x_lim, self.x_lim)
-        self.ax5.set_ylim(-5, 5)  # Adjust based on expected amplitude
-        self.ax5.set_xlabel("x")
         self.ax5.set_ylabel("u_f2(x)")
         self.ax5.set_title("Feedback 2 Field")
         self.ax5.legend()
 
+        # Plot for u_sim on ax2
         self.line_sim, = self.ax2.plot(
             self.x, np.zeros_like(self.x), label="u_sim")
-        self.ax2.set_xlim(-self.x_lim, self.x_lim)
-        self.ax2.set_ylim(-5, 5)  # Adjust based on expected amplitude
-        self.ax2.set_xlabel("x")
         self.ax2.set_ylabel("u_sim(x)")
         self.ax2.set_title("Simulation Field")
         self.ax2.legend()
 
+        # Plot for u_error on ax6
         self.line_error, = self.ax6.plot(
             self.x, np.zeros_like(self.x), label="u_error")
-        self.ax6.set_xlim(-self.x_lim, self.x_lim)
-        self.ax6.set_ylim(-5, 5)  # Adjust based on expected amplitude
-        self.ax6.set_xlabel("x")
         self.ax6.set_ylabel("u_error(x)")
         self.ax6.set_title("Error Field")
         self.ax6.legend()
+
+        # Apply the same formatting to all axes
+        for ax in [self.ax1, self.ax2, self.ax3, self.ax4, self.ax5, self.ax6]:
+            ax.set_xlim(-self.x_lim, self.x_lim)
+            ax.set_ylim(-5, 5)  # Adjust based on expected amplitude
+            ax.set_xlabel("Objects")
+            ax.grid(True)
+            
+            # Set custom x-ticks at object positions
+            ax.set_xticks(object_all)
+            ax.set_xticklabels(object_labels_all)
+            # Rotate labels for better readability
+            ax.tick_params(axis='x', rotation=45)
+            
+            # Add vertical lines at object positions (optional)
+            for pos in object_all:
+                ax.axvline(x=pos, color='gray', linestyle='--', alpha=0.3)
 
         plt.tight_layout()
         plt.show(block=False)
@@ -448,30 +455,6 @@ def load_sequence_memory(filename=None):
 
     return data
 
-
-# def load_sequence_memory_2(filename=None):
-#     data_dir = "data_basic"
-#     if filename is None:
-#         # Filter files with the "sequence_memory_" prefix
-#         files = [f for f in os.listdir(data_dir) if f.startswith(
-#             "u_sm_") and f.endswith('.npy')]
-
-#         if not files:
-#             raise IOError(
-#                 "No 'u_sm_' files found in the 'data' folder.")
-
-#         # Get the latest file by modification time
-#         latest_file = max([os.path.join(data_dir, f)
-#                           for f in files], key=os.path.getmtime)
-#         filename = latest_file
-
-#     data = np.load(filename)
-#     print(f"Loaded sequence memory from {filename}")
-
-#     # Ensure data is 1D
-#     data = data.flatten()
-
-#     return data
 
 
 def load_task_duration(filename=None):
