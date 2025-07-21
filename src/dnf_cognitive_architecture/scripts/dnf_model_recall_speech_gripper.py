@@ -68,6 +68,8 @@ class DNFModelWM:
         
         self.gripper_pub = rospy.Publisher('/gripper/command', String, queue_size=10)
 
+        self.gripper_status_sub = rospy.Subscriber('/gripper/status', String, self.gripper_status_callback)
+
         # Variable to store the latest input slice
         self.latest_input_slice = np.zeros_like(self.x)
 
@@ -267,6 +269,24 @@ class DNFModelWM:
 
         self.speech_input_next_counter = 0
 
+        self.input_robot_feedback = 0
+        self.robot_feedback_counter = 0  # counts time steps remaining for feedback
+        self.robot_feedback_center = None  # position to center the Gaussian
+
+        self.pending_robot_feedback = []
+
+    def gripper_status_callback(self, msg):
+        object_name = msg.data
+        for pos, name in self.POSITION_TO_OBJECT.items():
+            if name == object_name:
+                with self._lock:
+                    self.robot_feedback_center = pos
+                    self.robot_feedback_counter = 10  # Fixed number of steps
+                    rospy.loginfo(f"Set robot feedback: center={pos}, counter={self.robot_feedback_counter}")
+                break
+        else:
+            rospy.logwarn(f"Unknown object name from gripper: {object_name}")
+
     def timer_callback(self, event):
         """Timer callback to process inputs periodically."""
         try:
@@ -335,6 +355,10 @@ class DNFModelWM:
     def perform_recall(self):
         with self._lock:  # Thread safety
 
+                            
+            self.input_amplitude = 5.0
+            self.input_width = 2.0
+
             if self.speech_input_next_counter > 0:
                 # Extract values of u_sim at bump centers (indices)
                 values_at_centers = [self.u_sim[idx] for idx in self.sim_centers]
@@ -349,10 +373,6 @@ class DNFModelWM:
                 rospy.loginfo(
                     f"Highest bump center: {max_center} with value {values_at_centers[max_idx]:.3f}")
 
-                
-                self.input_amplitude = 5.0
-                self.input_width = 2.0
-                
                 # Create Gaussian at highest center
                 gauss_at_peak = self.input_amplitude * \
                     np.exp(-((self.x - max_center) ** 2) /
@@ -365,6 +385,18 @@ class DNFModelWM:
 
             else:
                 input_human_feedback = 0
+
+            # Robot feedback logic
+            if self.robot_feedback_counter > 0 and self.robot_feedback_center is not None:
+                rospy.loginfo(f"APPLY ROBOT INPUT, counter: {self.robot_feedback_counter}")
+                gauss_at_robot = self.input_amplitude * np.exp(
+                    -((self.x - self.robot_feedback_center) ** 2) / (2 * self.input_width ** 2)
+                )
+                self.input_robot_feedback = gauss_at_robot
+                self.robot_feedback_counter -= 1
+            else:
+                self.input_robot_feedback = 0
+                
         
             # Use the stored inputs directly (no need to split again)
             f_f1 = np.heaviside(self.u_f1 - self.theta_f, 1)
@@ -412,11 +444,15 @@ class DNFModelWM:
                 (-self.u_wm + conv_wm + 6*((f_f1*self.u_f1)*(f_f2*self.u_f2)) + self.h_u_wm)
 
             # Use the stored inputs
-            self.u_f1 += self.dt * (-self.u_f1 + conv_f1 + self.input_agent_robot_feedback +
-                                    self.h_f - 1 * f_wm * conv_wm)
+            # self.u_f1 += self.dt * (-self.u_f1 + conv_f1 + self.input_agent_robot_feedback +
+            #                         self.h_f - 1 * f_wm * conv_wm)
 
             # self.u_f2 += self.dt * (-self.u_f2 + conv_f2 + self.input_agent2 +
             #                         self.h_f - 1 * f_wm * conv_wm)
+
+            self.u_f1 += self.dt * (-self.u_f1 + conv_f1 + self.input_robot_feedback  +
+                        self.h_f - 1 * f_wm * conv_wm)
+            
             self.u_f2 += self.dt * (-self.u_f2 + conv_f2 + input_human_feedback +
                         self.h_f - 1 * f_wm * conv_wm)
 
