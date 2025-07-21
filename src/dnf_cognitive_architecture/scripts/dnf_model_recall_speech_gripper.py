@@ -162,26 +162,27 @@ class DNFModelWM:
 
             if self.trial_number == 1:
                 # Ensure it's 1D and shift as needed
-                self.u_act = load_sequence_memory().flatten() - self.h_d_initial + 1.5
+                # It should be + 1.5 (=theta), but I used + 1.54 because recall was a bit delayed
+                self.u_act = load_sequence_memory().flatten() - self.h_d_initial + 1.54
                 self.input_action_onset = load_sequence_memory().flatten()
-                self.h_u_act = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.5
+                self.h_u_act = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.54
 
-                self.u_sim = load_sequence_memory().flatten() - self.h_d_initial + 1.5
+                self.u_sim = load_sequence_memory().flatten() - self.h_d_initial + 1.54
                 self.input_action_onset_2 = load_sequence_memory().flatten()
-                self.h_u_sim = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.5
+                self.h_u_sim = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.54
             else:
                 data_dir = os.path.join(os.getcwd(), 'dnf_architecture_extended/data_basic')
                 rospy.loginfo(f"Loading from {data_dir}")
                 latest_h_amem_file = get_latest_file(data_dir, 'h_amem')
                 if latest_h_amem_file:
                     latest_h_amem = np.load(latest_h_amem_file, allow_pickle=True)
-                    self.u_act = load_sequence_memory().flatten() - self.h_d_initial + 1.5 + latest_h_amem
+                    self.u_act = load_sequence_memory().flatten() - self.h_d_initial + 1.54 + latest_h_amem
                     self.input_action_onset = load_sequence_memory().flatten() + latest_h_amem
-                    self.h_u_act = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.5
+                    self.h_u_act = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.54
 
-                    self.u_sim = load_sequence_memory().flatten() - self.h_d_initial + 1.5
+                    self.u_sim = load_sequence_memory().flatten() - self.h_d_initial + 1.54
                     self.input_action_onset_2 = load_sequence_memory().flatten()
-                    self.h_u_sim = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.5
+                    self.h_u_sim = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.54
 
         except IOError as e:
             rospy.loginfo(f"No previous sequence memory found: {e}")
@@ -325,7 +326,7 @@ class DNFModelWM:
                     self.input_agent_robot_feedback = received_data[2*n:]
             
             # Handle the logic for both subscription and timer
-            self.perform_recall()
+            # self.perform_recall()
         except Exception as e:
             rospy.logerr(f"Error in process_inputs: {e}")
 
@@ -537,7 +538,7 @@ class DNFModelWM:
 
     def save_working_memory(self):
         # Create directory if it doesn't exist
-        data_dir = "data"
+        data_dir = "/home/robotica/dnf_ros1/data_basic"
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
 
@@ -550,7 +551,7 @@ class DNFModelWM:
         print(f"Working memory saved to {filename}")
 
     def save_history(self):
-        data_dir = "data"
+        data_dir = "/home/robotica/dnf_ros1/data_basic"
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
 
@@ -579,6 +580,74 @@ class DNFModelWM:
         np.save(filename_h_amem, self.h_u_amem)
 
         print(f"History saved.")
+
+
+    def plot_activity_evolution(self, save_plot: bool = True, show_plot: bool = True):
+        try:
+            # Convert histories to numpy arrays
+            u_act_hist = np.array(self.u_act_history)
+            u_sim_hist = np.array(self.u_sim_history)
+            u_wm_hist = np.array(self.u_wm_history)
+            u_f1_hist = np.array(self.u_f1_history)
+            u_f2_hist = np.array(self.u_f2_history)
+            time_steps = np.arange(len(u_act_hist)) * self.dt
+
+            # Define object names for each position
+            object_names = {
+                -60: 'base',
+                -20: 'load',
+                20: 'bearing',
+                40: 'motor'
+            }
+            input_positions = list(object_names.keys())
+
+            fig, axes = plt.subplots(5, 1, figsize=(12, 16), sharex=True)
+
+            # Plot each field
+            for i, pos in enumerate(input_positions):
+                axes[0].plot(time_steps, u_act_hist[:, i], label=object_names[pos])
+                axes[1].plot(time_steps, u_sim_hist[:, i], label=object_names[pos])
+                axes[2].plot(time_steps, u_wm_hist[:, i], label=object_names[pos])
+                axes[3].plot(time_steps, u_f1_hist[:, i], label=object_names[pos])
+                axes[4].plot(time_steps, u_f2_hist[:, i], label=object_names[pos])
+
+            axes[0].set_title('u_act over time at input positions')
+            axes[1].set_title('u_sim over time at input positions')
+            axes[2].set_title('u_wm over time at input positions')
+            axes[3].set_title('u_f1 over time at input positions')
+            axes[4].set_title('u_f2 over time at input positions')
+
+            for ax in axes:
+                ax.set_ylabel('Activity')
+                ax.legend()
+                ax.grid(True)
+            axes[-1].set_xlabel('Time (s)')
+
+            plt.tight_layout()
+
+            # Save to disk
+            if save_plot:
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                workspace_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+                data_dir = os.path.join(workspace_root, "data_basic")
+                if not os.path.exists(data_dir):
+                    os.makedirs(data_dir)
+
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                plot_path = os.path.join(data_dir, f"activity_evolution_{timestamp}.png")
+                fig.savefig(plot_path)
+                rospy.loginfo(f"Saved activity evolution plot to {plot_path}")
+
+            # Show the plot
+            if show_plot:
+                plt.show()
+            else:
+                plt.close(fig)
+
+        except Exception as e:
+            rospy.logerr(f"Error plotting activity evolution: {e}")
+            import traceback
+            rospy.logerr(traceback.format_exc())
 
 
 def load_sequence_memory(filename=None):
@@ -654,11 +723,9 @@ def get_latest_file(data_dir, pattern):
 def main():
     try:
         node = DNFModelWM()
-        
         rospy.loginfo("DNF Model WM started. Waiting for input...")
-        
-        # Main loop with plotting in the main thread
-        rate = rospy.Rate(10)  # 10 Hz update rate
+
+        rate = rospy.Rate(10)
         while not rospy.is_shutdown():
             node.update_plot()
             rate.sleep()
@@ -670,8 +737,12 @@ def main():
     finally:
         if 'node' in locals():
             node.save_history()
-        plt.close('all')
+            node.plot_activity_evolution(save_plot=True, show_plot=True)  
+        # plt.close('all')  # <-- REMOVE THIS LINE
 
+    # Show the plot after ROS is fully shut down
+    import matplotlib.pyplot as plt
+    plt.show()
 
 if __name__ == '__main__':
     main()
