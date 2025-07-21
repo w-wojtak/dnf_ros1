@@ -38,7 +38,16 @@ class DNFModelWM:
             f"Recall node started with trial_number: {self.trial_number}")
 
         # Persistently track threshold crossings
-        self.threshold_crossed = {pos: False for pos in [-40, 0, 40]}
+        # self.threshold_crossed = {pos: False for pos in [-40, 0, 40]}
+
+        self.POSITION_TO_OBJECT = {
+            -60: 'base',
+            -20: 'load',
+            20: 'bearing',
+            40: 'motor'
+        }
+
+        self.threshold_crossed = {pos: False for pos in self.POSITION_TO_OBJECT.keys()}
 
         # Spatial and temporal parameters
         self.x_lim = 80
@@ -56,6 +65,8 @@ class DNFModelWM:
         # Publisher
         self.publisher = rospy.Publisher(
             'threshold_crossings', Float32MultiArray, queue_size=10)
+        
+        self.gripper_pub = rospy.Publisher('/gripper/command', String, queue_size=10)
 
         # Variable to store the latest input slice
         self.latest_input_slice = np.zeros_like(self.x)
@@ -416,7 +427,7 @@ class DNFModelWM:
 
             # Rest of the method remains the same...
             # List of input positions where we previously applied inputs
-            input_positions = [-40, 0, 40]
+            input_positions = list(self.POSITION_TO_OBJECT.keys())
 
             # Convert `input_positions` to indices in `self.x`
             input_indices = [np.argmin(np.abs(self.x - pos))
@@ -444,13 +455,24 @@ class DNFModelWM:
 
                 # Only proceed if the threshold has not yet been crossed for this input position
                 if not self.threshold_crossed[position] and self.u_act[idx] > self.theta_act:
-                    # Debugging line
-                    print(
-                        f"Threshold crossed at position {position} with u_act = {self.u_act[idx]}")
-                    threshold_msg = Float32MultiArray()
-                    threshold_msg.data = [float(position)]
-                    self.publisher.publish(threshold_msg)
+                    # Map position to object name
+                    object_name = self.POSITION_TO_OBJECT.get(position)
+                    if object_name:
+                        gripper_msg = String()
+                        gripper_msg.data = object_name
+                        self.gripper_pub.publish(gripper_msg)
+                        rospy.loginfo(f"Published gripper command: {object_name}")
+                    else:
+                        rospy.logwarn(f"No object mapped for position {position}")
+
                     self.threshold_crossed[position] = True
+                    # # Debugging line
+                    # print(
+                    #     f"Threshold crossed at position {position} with u_act = {self.u_act[idx]}")
+                    # threshold_msg = Float32MultiArray()
+                    # threshold_msg.data = [float(position)]
+                    # self.publisher.publish(threshold_msg)
+                    # self.threshold_crossed[position] = True
 
 
     def update_plot(self):

@@ -33,7 +33,9 @@
   </node>
 
   <!-- Output node -->
-  <node pkg="dnf_cognitive_architecture" type="output_node.py" name="output_node" output="screen"/>
+  <node pkg="dnf_cognitive_architecture" type="mock_gripper.py" name="mock_gripper" output="screen"/>
+
+  <!-- <node pkg="dnf_cognitive_architecture" type="output_node.py" name="output_node" output="screen"/> -->
 </launch>
 
 

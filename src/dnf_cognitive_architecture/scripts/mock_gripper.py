@@ -1,78 +1,36 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import String, Bool
-import time
-import random
+from std_msgs.msg import String
+import threading
 
-class MockRobotGripperNode:
+class MockRobotGripper:
     def __init__(self):
-        # Initialize the ROS node
         rospy.init_node('mock_robot_gripper', anonymous=True)
-        
-        # Create publisher for acknowledging next object requests
-        self.ack_pub = rospy.Publisher('/next_object_acknowledge', Bool, queue_size=10)
-        
-        # Subscribe to speech commands to detect next object requests
-        self.speech_sub = rospy.Subscriber('/mock_speech_recognition/command', String, self.speech_callback)
-        
-        # Parameters
-        self.min_process_time = rospy.get_param('~min_process_time', 2.0)  # Min seconds to process
-        self.max_process_time = rospy.get_param('~max_process_time', 5.0)  # Max seconds to process
-        
-        # Tracking if we're currently processing a request
-        self.processing = False
-        
-        rospy.loginfo("Mock Robot Gripper Node started")
-        rospy.loginfo("Listening for 'next object' requests and sending acknowledgements")
-        
-    def speech_callback(self, msg):
-        """Handle speech commands"""
-        command = msg.data.lower()
-        
-        if ("i need next object" in command or "next object" in command) and not self.processing:
-            self.processing = True
-            rospy.loginfo("GRIPPER: Detected next object request, starting to process...")
-            
-            # Process the request in a separate thread
-            import threading
-            process_thread = threading.Thread(target=self.process_request)
-            process_thread.daemon = True
-            process_thread.start()
-    
-    def process_request(self):
-        """Simulate processing time for robot to handle the object"""
-        try:
-            # Random processing time
-            process_time = random.uniform(self.min_process_time, self.max_process_time)
-            
-            # Simulate robot moving to next object
-            rospy.loginfo(f"GRIPPER: Moving to next object (will take {process_time:.1f} seconds)...")
-            
-            # Sleep to simulate processing time
-            rospy.sleep(process_time/2)
-            rospy.loginfo("GRIPPER: Reaching object position...")
-            rospy.sleep(process_time/2)
-            
-            # Send acknowledgement
-            ack_msg = Bool()
-            ack_msg.data = True
-            self.ack_pub.publish(ack_msg)
-            rospy.loginfo("GRIPPER: Object handling complete, sent acknowledgement")
-            
-            # Reset processing flag
-            self.processing = False
-            
-        except Exception as e:
-            rospy.logerr(f"Error in process_request: {str(e)}")
-            self.processing = False
+        self.delay = rospy.get_param('~process_time', 10.0)  # seconds
 
-def main():
+        self.status_pub = rospy.Publisher('/gripper/status', String, queue_size=10)
+        self.command_sub = rospy.Subscriber('/gripper/command', String, self.command_callback)
+
+        rospy.loginfo("Mock Robot Gripper node started. Waiting for commands...")
+
+    def command_callback(self, msg):
+        object_name = msg.data
+        rospy.loginfo("Received gripper command for object: %s", object_name)
+        # Start a timer thread to simulate the delay
+        threading.Thread(target=self.process_object, args=(object_name,)).start()
+
+    def process_object(self, object_name):
+        rospy.loginfo("Processing object '%s' for %.1f seconds...", object_name, self.delay)
+        rospy.sleep(self.delay)
+        confirmation_msg = String()
+        confirmation_msg.data = object_name
+        self.status_pub.publish(confirmation_msg)
+        rospy.loginfo("Published gripper status for object: %s", object_name)
+
+if __name__ == '__main__':
     try:
-        gripper = MockRobotGripperNode()
+        node = MockRobotGripper()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
-
-if __name__ == '__main__':
-    main()
