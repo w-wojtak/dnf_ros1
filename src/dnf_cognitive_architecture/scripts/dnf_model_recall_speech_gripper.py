@@ -172,18 +172,18 @@ class DNFModelWM:
                 self.input_action_onset_2 = load_sequence_memory().flatten()
                 self.h_u_sim = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.54
             else:
-                data_dir = os.path.join(os.getcwd(), 'dnf_architecture_extended/data_basic')
+                data_dir = os.path.join(os.getcwd(), '/home/robotica/dnf_ros1/data_basic')
                 rospy.loginfo(f"Loading from {data_dir}")
                 latest_h_amem_file = get_latest_file(data_dir, 'h_amem')
-                if latest_h_amem_file:
-                    latest_h_amem = np.load(latest_h_amem_file, allow_pickle=True)
-                    self.u_act = load_sequence_memory().flatten() - self.h_d_initial + 1.54 + latest_h_amem
-                    self.input_action_onset = load_sequence_memory().flatten() + latest_h_amem
-                    self.h_u_act = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.54
+                # if latest_h_amem_file:
+                self.latest_h_amem = np.load(latest_h_amem_file, allow_pickle=True)
+                self.u_act = load_sequence_memory().flatten() - self.h_d_initial + 1.54 - self.latest_h_amem
+                self.input_action_onset = load_sequence_memory().flatten() - self.latest_h_amem
+                self.h_u_act = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.54
 
-                    self.u_sim = load_sequence_memory().flatten() - self.h_d_initial + 1.54
-                    self.input_action_onset_2 = load_sequence_memory().flatten()
-                    self.h_u_sim = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.54
+                self.u_sim = load_sequence_memory().flatten() - self.h_d_initial + 1.54
+                self.input_action_onset_2 = load_sequence_memory().flatten()
+                self.h_u_sim = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.54
 
         except IOError as e:
             rospy.loginfo(f"No previous sequence memory found: {e}")
@@ -249,7 +249,7 @@ class DNFModelWM:
 
         # initialize h level for the adaptation
         self.h_u_amem = np.zeros(np.shape(self.x))
-        self.beta_adapt = 0.01
+        self.beta_adapt = 0.005
 
         # Create subscriber and timer AFTER all fields are initialized
         self.subscription = rospy.Subscriber(
@@ -583,6 +583,9 @@ class DNFModelWM:
         np.save(filename_f2, self.u_f2_history)
 
         self.h_u_amem = gaussian_filter1d(self.h_u_amem, sigma=5)
+
+        if self.trial_number > 1:
+            self.h_u_amem += self.h_u_amem + self.latest_h_amem
 
         filename_h_amem = f"{data_dir}/h_amem_{timestamp}.npy"
         np.save(filename_h_amem, self.h_u_amem)

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 # Path to your .npy file
 # file_path = '/home/robotica/dnf_ros1/data_basic/u_sm_20250717_173350.npy'
-file_path = '/home/robotica/dnf_ros1/data_basic/h_amem_20250721_171431.npy'
+file_path = '/home/robotica/dnf_ros1/data_basic/h_amem_20250721_180447.npy'
 
 # Load the vector
 u_sm = np.load(file_path)
