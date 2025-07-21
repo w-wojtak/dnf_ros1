@@ -1,0 +1,41 @@
+<launch>
+  <arg name="trial_number" default="1" />
+
+  <!-- Argument to switch between mock and real speech recognition -->
+  <arg name="use_mock_speech" default="true" />
+
+  <node pkg="dnf_cognitive_architecture" type="input_vision.py" name="input_vision" output="screen"/>
+      
+      
+  <!-- Mock Speech Recognition Node (only if using mock) -->
+  <group if="$(arg use_mock_speech)">
+      <node name="mock_speech_recognition" pkg="dnf_cognitive_architecture" type="mock_speech_recognition.py" output="screen">
+          <param name="start_delay" value="1.0" />
+          <param name="finished_delay" value="15.0" />
+      </node>
+  </group>
+
+    <!-- Mock Robot Gripper Node -->
+    <group if="$(arg use_mock_gripper)">
+        <node name="mock_gripper" pkg="dnf_cognitive_architecture" type="mock_robot_gripper" output="screen">
+            <param name="min_process_time" value="2.0" />
+            <param name="max_process_time" value="5.0" />
+        </node>
+    </group>
+    
+
+  <!-- Input matrix node -->
+  <node pkg="dnf_cognitive_architecture" type="input_matrix.py" name="input_matrix" output="screen"/>
+
+  <!-- Recall nodes -->
+  <node pkg="dnf_cognitive_architecture" type="dnf_model_recall_speech_gripper.py" name="dnf_model_recall_speech_gripper" output="screen">
+    <param name="trial_number" value="$(arg trial_number)" />
+  </node>
+
+  <!-- Output node -->
+  <node pkg="dnf_cognitive_architecture" type="output_node.py" name="output_node" output="screen"/>
+</launch>
+
+
+<!-- The default value is 1, but you can override it when launching:
+roslaunch your_launch_file.launch trial_number:=3 -->

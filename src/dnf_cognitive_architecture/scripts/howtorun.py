@@ -55,3 +55,14 @@ lower right: x = 0.71, y = 0.52
 
     
 """
+
+
+"""
+mock speech recognition
+
+    Press s for "start"
+    Press f for "finished"
+    Press n for "next"
+    Press q to quit
+
+"""
