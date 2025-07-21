@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, String
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as anim
@@ -9,6 +9,21 @@ import threading
 from datetime import datetime
 import os
 import time
+
+
+def find_bump_centers(u_array, theta, bump_half_width=25):
+    centers = []
+    u_copy = u_array.copy()
+
+    while np.max(u_copy) > theta:
+        max_idx = np.argmax(u_copy)
+        centers.append(max_idx)
+
+        start = max(0, max_idx - bump_half_width)
+        end = min(len(u_copy), max_idx + bump_half_width + 1)
+        u_copy[start:end] = 0.0
+
+    return centers
 
 
 class DNFModelWM:
@@ -151,6 +166,10 @@ class DNFModelWM:
                     self.input_action_onset = load_sequence_memory().flatten() + latest_h_amem
                     self.h_u_act = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.5
 
+                    self.u_sim = load_sequence_memory().flatten() - self.h_d_initial + 1.5
+                    self.input_action_onset_2 = load_sequence_memory().flatten()
+                    self.h_u_sim = -self.h_d_initial * np.ones(np.shape(self.x)) + 1.5
+
         except IOError as e:
             rospy.loginfo(f"No previous sequence memory found: {e}")
             # Fields are already initialized with zeros above
@@ -200,11 +219,18 @@ class DNFModelWM:
         self.u_f2_history = []
         self.u_error_history = []
 
-            # Variable to store the latest input slices - initialize all three
+        # Variable to store the latest input slices - initialize all three
         self.input_agent1 = np.zeros_like(self.x)
         self.input_agent2 = np.zeros_like(self.x)
         self.input_agent_robot_feedback = np.zeros_like(self.x)
         
+
+        # BUMP CENTERS IN U_SIM
+        self.sim_centers = find_bump_centers(self.u_sim, 1.0)
+        self.x_centers = [round(self.x[idx]) for idx in self.sim_centers]
+
+        # self.get_logger().info(f"BUMP CENTERS: {self.x_centers}")
+        rospy.loginfo(f"BUMP CENTERS: {self.x_centers}")
 
         # initialize h level for the adaptation
         self.h_u_amem = np.zeros(np.shape(self.x))
@@ -218,8 +244,17 @@ class DNFModelWM:
             queue_size=10
         )
 
+        self.speech_sub = rospy.Subscriber(
+            '/mock_speech_recognition/command',
+            String,
+            self.speech_command_callback,
+            queue_size=10
+        )
+
         # Timer to publish every 1 second
         self.timer = rospy.Timer(rospy.Duration(1.0), self.timer_callback)
+
+        self.speech_input_next_counter = 0
 
     def timer_callback(self, event):
         """Timer callback to process inputs periodically."""
@@ -263,8 +298,63 @@ class DNFModelWM:
         except Exception as e:
             rospy.logerr(f"Error in process_inputs: {e}")
 
+    def speech_command_callback(self, msg):
+        command = msg.data
+        rospy.loginfo("Received speech command: '%s'" % command)
+        if command == "start":
+            rospy.loginfo("Starting trial!")
+            # Example: set a flag or counter for "start" if needed
+            # with self._lock:
+            #     self.speech_input_start_counter = 10
+            # self.start_trial()  # (implement this if needed)
+        elif command == "finished":
+            rospy.loginfo("Trial finished!")
+            # Example: set a flag or counter for "finished" if needed
+            # with self._lock:
+            #     self.speech_input_finished_counter = 10
+            # self.finish_trial()  # (implement this if needed)
+        elif command == "next":
+            rospy.loginfo("Next object requested!")
+            with self._lock:
+                self.speech_input_next_counter = 10  # Set for 10 time steps
+            # self.next_object()  # (implement this if needed)
+        else:
+            rospy.logwarn("Unknown speech command: '%s'" % command)
+
     def perform_recall(self):
         with self._lock:  # Thread safety
+
+            if self.speech_input_next_counter > 0:
+                # Extract values of u_sim at bump centers (indices)
+                values_at_centers = [self.u_sim[idx] for idx in self.sim_centers]
+
+                # Find the index of the max value among those centers
+                max_idx = values_at_centers.index(max(values_at_centers))
+
+                # Get the center location with highest value
+                max_center = round(self.x[self.sim_centers[max_idx]])
+
+                # Log or use the result
+                rospy.loginfo(
+                    f"Highest bump center: {max_center} with value {values_at_centers[max_idx]:.3f}")
+
+                
+                self.input_amplitude = 5.0
+                self.input_width = 2.0
+                
+                # Create Gaussian at highest center
+                gauss_at_peak = self.input_amplitude * \
+                    np.exp(-((self.x - max_center) ** 2) /
+                        (2 * self.input_width**2))
+
+                input_human_feedback = gauss_at_peak
+
+                # Decrement the counter
+                self.speech_input_next_counter -= 1
+
+            else:
+                input_human_feedback = 0
+        
             # Use the stored inputs directly (no need to split again)
             f_f1 = np.heaviside(self.u_f1 - self.theta_f, 1)
             f_hat_f1 = np.fft.fft(f_f1)
@@ -314,8 +404,10 @@ class DNFModelWM:
             self.u_f1 += self.dt * (-self.u_f1 + conv_f1 + self.input_agent_robot_feedback +
                                     self.h_f - 1 * f_wm * conv_wm)
 
-            self.u_f2 += self.dt * (-self.u_f2 + conv_f2 + self.input_agent2 +
-                                    self.h_f - 1 * f_wm * conv_wm)
+            # self.u_f2 += self.dt * (-self.u_f2 + conv_f2 + self.input_agent2 +
+            #                         self.h_f - 1 * f_wm * conv_wm)
+            self.u_f2 += self.dt * (-self.u_f2 + conv_f2 + input_human_feedback +
+                        self.h_f - 1 * f_wm * conv_wm)
 
             self.u_error += self.dt * (-self.u_error + conv_error +
                                     self.h_f - 2 * f_sim * conv_sim)

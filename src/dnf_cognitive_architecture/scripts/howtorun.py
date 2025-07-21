@@ -58,11 +58,18 @@ lower right: x = 0.71, y = 0.52
 
 
 """
-mock speech recognition
+running mock speech node
 
-    Press s for "start"
-    Press f for "finished"
-    Press n for "next"
-    Press q to quit
+source ~/catkin_ws/devel/setup.bash
+rosrun dnf_cognitive_architecture mock_speech_recognition.py
+
+Press keys to send commands:
+
+    s = start
+    f = finished
+    n = next
+    q = quit
+
+
 
 """
