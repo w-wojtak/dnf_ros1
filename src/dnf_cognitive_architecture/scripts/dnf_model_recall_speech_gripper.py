@@ -524,6 +524,11 @@ class DNFModelWM:
                 self.line_f2.set_ydata(self.u_f2)
                 self.line_error.set_ydata(self.u_error)
                 
+                # Update timestep in the title
+                timestep = len(self.u_act_history)
+                self.fig.suptitle(f"Time: {timestep}", fontsize=16)
+                self.fig.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for suptitle
+                
                 # Update display
                 self.fig.canvas.draw_idle()
                 self.fig.canvas.flush_events()
