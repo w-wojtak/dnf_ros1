@@ -17,6 +17,7 @@ install(
     scripts/dnf_model_recall.py
     scripts/dnf_model_learning_extended.py
     scripts/dnf_model_recall_extended.py
+    scripts/dnf_model_recall_speech_gripper.py
     scripts/input_matrix.py
     scripts/input_vision.py
     scripts/output_node.py
