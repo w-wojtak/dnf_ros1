@@ -58,6 +58,9 @@ axes[2].set_title('u_wm over time at input positions')
 axes[3].set_title('u_f1 over time at input positions')
 axes[4].set_title('u_f2 over time at input positions')
 
+axes[0].set_ylim(-3, 5)  # For u_act
+axes[1].set_ylim(-3, 5)  # For u_sim
+
 for ax in axes:
     ax.set_ylabel('Activity')
     ax.legend()

@@ -9,6 +9,7 @@ import threading
 from datetime import datetime
 import os
 import time
+from scipy.ndimage import gaussian_filter1d  # type: ignore
 
 
 def find_bump_centers(u_array, theta, bump_half_width=25):
@@ -581,10 +582,12 @@ class DNFModelWM:
         filename_f2 = f"{data_dir}/f2_history_{timestamp}.npy"
         np.save(filename_f2, self.u_f2_history)
 
+        self.h_u_amem = gaussian_filter1d(self.h_u_amem, sigma=5)
+
         filename_h_amem = f"{data_dir}/h_amem_{timestamp}.npy"
         np.save(filename_h_amem, self.h_u_amem)
 
-        print(f"History saved.")
+        rospy.loginfo("HISTORY SAVED.")
 
 
     def plot_activity_evolution(self, save_plot: bool = True, show_plot: bool = True):
