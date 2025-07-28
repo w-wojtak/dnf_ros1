@@ -72,6 +72,9 @@ class InputMatrix(object):
         # Initialize the current time index for publishing
         self.current_time_index = 0
 
+        # for tracking detected movements
+        self.movement_detected = set()
+
     def gaussian(self, center=0, amplitude=1.0, width=1.0):
         return amplitude * np.exp(-((self.x - center) ** 2) / (2 * (width ** 2)))
 
@@ -164,10 +167,12 @@ class InputMatrix(object):
                 
                 # Check if this is one of our tracked objects
                 if object_name in self.object_positions:
-                    # Check for movement
-                    if self.check_movement(object_name, x, y):
-                        rospy.loginfo(f"Movement detected for {object_name}")
-                        self.add_gaussian_input(object_name)
+                    # Only process if not already detected
+                    if object_name not in self.movement_detected:
+                        if self.check_movement(object_name, x, y):
+                            rospy.loginfo(f"Movement detected for {object_name}")
+                            self.add_gaussian_input(object_name)
+                            self.movement_detected.add(object_name)
             
             # Update input matrices with all active gaussians
             self.update_input_matrices()

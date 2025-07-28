@@ -22,6 +22,8 @@ roslaunch dnf_cognitive_architecture dnf_learn.launch
 roslaunch dnf_cognitive_architecture dnf_learn_vision.launch
 
 
+roslaunch dnf_cognitive_architecture dnf_recall_speech_gripper
+
 to run vision code:
 source venv_detection/bin/activate
 

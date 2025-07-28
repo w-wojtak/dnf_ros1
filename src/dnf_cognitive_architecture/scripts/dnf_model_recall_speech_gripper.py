@@ -513,6 +513,7 @@ class DNFModelWM:
                     # self.threshold_crossed[position] = True
 
 
+
     def update_plot(self):
         """Update plot data without blocking"""
         try:
