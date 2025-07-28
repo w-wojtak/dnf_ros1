@@ -41,6 +41,13 @@ class DNFModelWM:
         # Publisher
         self.publisher = rospy.Publisher(
             'threshold_crossings', Float32MultiArray, queue_size=10)
+        
+        self.POSITION_TO_OBJECT = {
+            -60: 'base',
+            -20: 'load',
+            20: 'bearing',
+            40: 'motor'
+        }
 
         # Variable to store the latest input slice
         self.latest_input_slice = np.zeros_like(self.x)
@@ -310,7 +317,7 @@ class DNFModelWM:
             self.u_f2 += self.dt * (-self.u_f2 + conv_f2 + self.input_agent2 +
                                     self.h_f - 1 * f_wm * conv_wm)
 
-            self.u_error += self.dt * (-self.u_error + conv_error +
+            self.u_error += self.dt * (-self.u_error + conv_error + 1*(f_f2 * conv_f2) +
                                     self.h_f - 2 * f_sim * conv_sim)
 
             self.h_u_amem += self.beta_adapt*(1 - (f_f2 * f_f1)) * (f_f1 - f_f2)
@@ -318,6 +325,7 @@ class DNFModelWM:
             # Rest of the method remains the same...
             # List of input positions where we previously applied inputs
             input_positions = [-40, 0, 40]
+            # input_positions = list(self.POSITION_TO_OBJECT.keys())
 
             # Convert `input_positions` to indices in `self.x`
             input_indices = [np.argmin(np.abs(self.x - pos))
@@ -338,6 +346,9 @@ class DNFModelWM:
 
             u_f2_values_at_positions = [self.u_f2[idx] for idx in input_indices]
             self.u_f2_history.append(u_f2_values_at_positions)
+
+            u_error_values_at_positions = [self.u_error[idx] for idx in input_indices]
+            self.u_error_history.append(u_error_values_at_positions)
 
             # Check `u_act` values at exact input indices for threshold crossings
             for i, idx in enumerate(input_indices):
@@ -422,6 +433,85 @@ class DNFModelWM:
         np.save(filename_h_amem, self.h_u_amem)
 
         print(f"History saved.")
+
+
+    def plot_activity_evolution(self, save_plot: bool = True, show_plot: bool = True):
+        try:
+            # Convert histories to numpy arrays
+            u_act_hist = np.array(self.u_act_history)
+            u_sim_hist = np.array(self.u_sim_history)
+            u_wm_hist = np.array(self.u_wm_history)
+            u_f1_hist = np.array(self.u_f1_history)
+            u_f2_hist = np.array(self.u_f2_history)
+            u_error_hist = np.array(self.u_error_history)
+            time_steps = np.arange(len(u_act_hist)) * self.dt
+
+            # Define object names for each position
+            object_names = {
+                -60: 'base',
+                -20: 'load',
+                20: 'bearing',
+                40: 'motor'
+            }
+            # input_positions = list(object_names.keys())
+            input_positions = [-40, 0, 40]
+
+            fig, axes = plt.subplots(6, 1, figsize=(12, 16), sharex=True)
+
+            # Plot each field
+            # for i, pos in enumerate(input_positions):
+            #     axes[0].plot(time_steps, u_act_hist[:, i], label=object_names[pos])
+            #     axes[1].plot(time_steps, u_sim_hist[:, i], label=object_names[pos])
+            #     axes[2].plot(time_steps, u_wm_hist[:, i], label=object_names[pos])
+            #     axes[3].plot(time_steps, u_f1_hist[:, i], label=object_names[pos])
+            #     axes[4].plot(time_steps, u_f2_hist[:, i], label=object_names[pos])
+            for i, pos in enumerate(input_positions):
+                axes[0].plot(time_steps, u_act_hist[:, i])
+                axes[1].plot(time_steps, u_sim_hist[:, i])
+                axes[2].plot(time_steps, u_wm_hist[:, i])
+                axes[3].plot(time_steps, u_f1_hist[:, i])
+                axes[4].plot(time_steps, u_f2_hist[:, i])
+                axes[5].plot(time_steps, u_error_hist[:, i])
+
+            axes[0].set_title('u_act over time at input positions')
+            axes[1].set_title('u_sim over time at input positions')
+            axes[2].set_title('u_wm over time at input positions')
+            axes[3].set_title('u_f1 over time at input positions')
+            axes[4].set_title('u_f2 over time at input positions')
+            axes[5].set_title('u_error over time at input positions')
+
+            for ax in axes:
+                ax.set_ylabel('Activity')
+                ax.legend()
+                ax.grid(True)
+            axes[-1].set_xlabel('Time (s)')
+
+            plt.tight_layout()
+
+            # Save to disk
+            if save_plot:
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                workspace_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+                data_dir = os.path.join(workspace_root, "data_extended")
+                if not os.path.exists(data_dir):
+                    os.makedirs(data_dir)
+
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                plot_path = os.path.join(data_dir, f"activity_evolution_{timestamp}.png")
+                fig.savefig(plot_path)
+                rospy.loginfo(f"Saved activity evolution plot to {plot_path}")
+
+            # Show the plot
+            if show_plot:
+                plt.show()
+            else:
+                plt.close(fig)
+
+        except Exception as e:
+            rospy.logerr(f"Error plotting activity evolution: {e}")
+            import traceback
+            rospy.logerr(traceback.format_exc())
+
 
 
 def load_sequence_memory(filename=None):
@@ -537,7 +627,12 @@ def main():
     finally:
         if 'node' in locals():
             node.save_history()
-        plt.close('all')
+            node.plot_activity_evolution(save_plot=True, show_plot=True) 
+        # plt.close('all')
+
+     # Show the plot after ROS is fully shut down
+    import matplotlib.pyplot as plt
+    plt.show()
 
 
 if __name__ == '__main__':

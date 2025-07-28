@@ -29,7 +29,8 @@ class DNFModel:
         self.x = np.arange(-self.x_lim, self.x_lim + self.dx, self.dx)
         self.t = np.arange(0, self.t_lim + self.dt, self.dt)
 
-        self.input_positions = [-60, -20, 20, 40]
+        # self.input_positions = [-60, -20, 20, 40]
+        self.input_positions = [-40, 0, 40]
 
         self.u_sm_history = []
         self.u_sm_2_history = []
@@ -297,16 +298,16 @@ class DNFModel:
             fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
 
             # Define object names for each position
-            object_names = {
-                -60: 'base',
-                -20: 'load',
-                20: 'bearing',
-                40: 'motor'
-            }
+            # object_names = {
+            #     -60: 'base',
+            #     -20: 'load',
+            #     20: 'bearing',
+            #     40: 'motor'
+            # }
 
             # Plot u_sm (Agent 1)
             for i, pos in enumerate(self.input_positions):
-                axes[0].plot(time_steps, u_sm_hist[:, i], label=object_names[pos])
+                axes[0].plot(time_steps, u_sm_hist[:, i])
             axes[0].set_title('u_sm (Agent 1) over time at input positions')
             axes[0].set_ylabel('u_sm')
             axes[0].legend()
@@ -314,7 +315,7 @@ class DNFModel:
 
             # Plot u_sm_2 (Agent 2)
             for i, pos in enumerate(self.input_positions):
-                axes[1].plot(time_steps, u_sm_2_hist[:, i], label=object_names[pos])
+                axes[1].plot(time_steps, u_sm_2_hist[:, i])
             axes[1].set_title('u_sm_2 (Agent 2) over time at input positions')
             axes[1].set_ylabel('u_sm_2')
             axes[1].legend()
