@@ -27,6 +27,8 @@ install(
     scripts/mock_speech_recognition.py
     scripts/mock_gripper.py
     scripts/output_node_gripper.py
+    scripts/udp_listener_node.py
+    scripts/udp_response_sender_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
